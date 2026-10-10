@@ -4,8 +4,11 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.os.Bundle
 import android.os.Handler
+import android.media.AudioManager
 import android.os.Looper
+import android.view.GestureDetector
 import android.view.KeyEvent
+import android.view.MotionEvent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -43,6 +46,9 @@ class MainActivity : Activity() {
 
     private val ui = Handler(Looper.getMainLooper())
 
+    // ── Gestos táctiles (para celular): toque = lista, deslizar = cambiar canal, mantener = menú
+    private lateinit var gestures: GestureDetector
+
     private var channels: List<Channel> = emptyList()
     private var index = 0
     private var prevIndex = -1
@@ -76,6 +82,31 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_main)
+        volumeControlStream = AudioManager.STREAM_MUSIC // botones de volumen = volumen multimedia
+
+        gestures = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                if (panelVisible) hideList() else showList()
+                return true
+            }
+
+            override fun onLongPress(e: MotionEvent) {
+                if (!panelVisible) showMenu()
+            }
+
+            override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
+                if (e1 == null || panelVisible) return false
+                val dy = e2.y - e1.y
+                val dx = e2.x - e1.x
+                if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 120) {
+                    if (dy < 0) step(+1) else step(-1) // deslizar arriba = canal siguiente
+                    return true
+                }
+                return false
+            }
+        })
 
         playerView = findViewById(R.id.player)
         osd = findViewById(R.id.osd)
@@ -304,6 +335,16 @@ class MainActivity : Activity() {
         KeyEvent.KEYCODE_INFO, KeyEvent.KEYCODE_GUIDE,
         KeyEvent.KEYCODE_LAST_CHANNEL, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> true
         else -> false
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        // Si la lista está abierta y se toca sobre ella, la lista maneja el toque (scroll / elegir canal).
+        val onList = panelVisible && ev.x <= listView.width
+        if (!onList) {
+            gestures.onTouchEvent(ev)
+            return true
+        }
+        return super.dispatchTouchEvent(ev)
     }
 
     override fun dispatchKeyEvent(e: KeyEvent): Boolean {
