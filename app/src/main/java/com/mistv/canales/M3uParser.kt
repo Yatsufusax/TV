@@ -6,7 +6,9 @@ data class Channel(
     val group: String,
     val url: String,
     val userAgent: String?,
-    val referer: String?
+    val referer: String?,
+    val logo: String? = null,
+    val tvgId: String? = null
 )
 
 object M3uParser {
@@ -18,6 +20,8 @@ object M3uParser {
         var chno: Int? = null
         var ua: String? = null
         var referer: String? = null
+        var logo: String? = null
+        var tvgId: String? = null
     }
 
     fun parse(input: String): List<Channel> {
@@ -41,6 +45,8 @@ object M3uParser {
                     val v = m.groupValues[2]
                     when (m.groupValues[1].lowercase()) {
                         "group-title" -> if (v.isNotBlank()) r.group = v
+                        "tvg-logo" -> if (v.isNotBlank()) r.logo = v.trim()
+                        "tvg-id" -> if (v.isNotBlank()) r.tvgId = v.trim()
                         "tvg-chno", "channel-number" -> r.chno = v.trim().toIntOrNull()
                         "http-user-agent" -> r.ua = v
                         "http-referrer", "http-referer" -> r.referer = v
@@ -86,7 +92,7 @@ object M3uParser {
                 used.add(next)
                 next
             }
-            result.add(Channel(num, r.name, r.group, url, r.ua, r.referer))
+            result.add(Channel(num, r.name, r.group, url, r.ua, r.referer, r.logo, r.tvgId))
         }
         return result.sortedBy { it.number }
     }

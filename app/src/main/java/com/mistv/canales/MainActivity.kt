@@ -17,8 +17,10 @@ import android.view.WindowManager
 import android.widget.AdapterView
 import android.widget.BaseAdapter
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.media3.common.C
@@ -33,6 +35,9 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.util.VLCVideoLayout
@@ -55,6 +60,10 @@ class MainActivity : Activity() {
     private lateinit var osdNumber: TextView
     private lateinit var osdName: TextView
     private lateinit var osdGroup: TextView
+    private lateinit var osdLogo: ImageView
+    private lateinit var osdNow: TextView
+    private lateinit var osdNext: TextView
+    private lateinit var osdProgress: ProgressBar
     private lateinit var digitsView: TextView
     private lateinit var messageView: TextView
     private lateinit var listView: ListView
@@ -66,6 +75,8 @@ class MainActivity : Activity() {
     private lateinit var gestures: GestureDetector
 
     private var channels: List<Channel> = emptyList()
+    private var shown: List<Channel> = emptyList() // canales que se muestran en la lista (puede ocultar caídos)
+    private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
     private var index = 0
     private var prevIndex = -1
     private var digits = ""
@@ -85,6 +96,12 @@ class MainActivity : Activity() {
         startPlayback()
     }
     private val retryUpdate = Runnable { updateNow(false) }
+    private val epgUpdate = object : Runnable {
+        override fun run() {
+            updateEpg(false)
+            ui.postDelayed(this, 12L * 60 * 60 * 1000)
+        }
+    }
     private val autoUpdate = object : Runnable {
         override fun run() {
             updateNow(false)
@@ -130,18 +147,28 @@ class MainActivity : Activity() {
         osdNumber = findViewById(R.id.osdNumber)
         osdName = findViewById(R.id.osdName)
         osdGroup = findViewById(R.id.osdGroup)
+        osdLogo = findViewById(R.id.osdLogo)
+        osdNow = findViewById(R.id.osdNow)
+        osdNext = findViewById(R.id.osdNext)
+        osdProgress = findViewById(R.id.osdProgress)
         digitsView = findViewById(R.id.digits)
         messageView = findViewById(R.id.message)
         listView = findViewById(R.id.channelList)
 
         repo = ChannelRepository(this)
         channels = repo.loadLocal()
+        shown = channels
+        LogoLoader.init(this)
+        ChannelChecker.load(repo)
 
         adapter = ChannelAdapter()
         listView.adapter = adapter
         listView.onItemClickListener = AdapterView.OnItemClickListener { _, _, pos, _ ->
-            hideList()
-            tune(pos)
+            val picked = shown.getOrNull(pos)
+            if (picked != null) {
+                hideList()
+                tune(channels.indexOfFirst { it === picked })
+            }
         }
 
         // Si el decodificador de video principal falla, prueba con otro (software) antes de rendirse.
@@ -173,6 +200,7 @@ class MainActivity : Activity() {
         tune(index)
 
         ui.postDelayed(autoUpdate, 1500)
+        ui.postDelayed(epgUpdate, 3000)
         ui.postDelayed({ AppUpdater.check(this, false) }, 5000)
     }
 
@@ -217,7 +245,7 @@ class MainActivity : Activity() {
         modes = if (looksHls(ch.url)) listOf(true, false) else listOf(false, true)
         startPlayback()
         showOsd(ch)
-        adapter.notifyDataSetChanged()
+        refreshShown()
     }
 
     private fun startPlayback() {
@@ -351,10 +379,31 @@ class MainActivity : Activity() {
         osdNumber.text = ch.number.toString()
         osdName.text = ch.name
         osdGroup.text = ch.group
+        LogoLoader.load(osdLogo, ch.logo)
+        osdLogo.visibility = if (ch.logo.isNullOrBlank()) View.GONE else View.VISIBLE
+        val (now, next) = Epg.nowNext(ch)
+        if (now != null) {
+            osdNow.text = "Ahora:  ${now.title}   (${fmt(now.start)} – ${fmt(now.stop)})"
+            osdNow.visibility = View.VISIBLE
+            val total = (now.stop - now.start).coerceAtLeast(1L)
+            osdProgress.progress = (((System.currentTimeMillis() - now.start) * 100) / total).toInt().coerceIn(0, 100)
+            osdProgress.visibility = View.VISIBLE
+        } else {
+            osdNow.visibility = View.GONE
+            osdProgress.visibility = View.GONE
+        }
+        if (next != null) {
+            osdNext.text = "Después:  ${next.title}   (${fmt(next.start)})"
+            osdNext.visibility = View.VISIBLE
+        } else {
+            osdNext.visibility = View.GONE
+        }
         osd.visibility = View.VISIBLE
         ui.removeCallbacks(hideOsd)
         ui.postDelayed(hideOsd, Config.OSD_MS)
     }
+
+    private fun fmt(t: Long): String = timeFmt.format(Date(t))
 
     private fun showMessage(text: String, autoHideMs: Long) {
         messageView.text = text
@@ -371,11 +420,23 @@ class MainActivity : Activity() {
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
 
     private fun showList() {
-        adapter.notifyDataSetChanged()
+        refreshShown()
         listView.visibility = View.VISIBLE
         panelVisible = true
         listView.requestFocus()
-        listView.post { listView.setSelection(index) }
+        listView.post {
+            val cur = channels.getOrNull(index)
+            listView.setSelection(shown.indexOfFirst { it === cur }.coerceAtLeast(0))
+        }
+    }
+
+    private fun isDead(ch: Channel) = ChannelChecker.isDead(ch.url)
+
+    /** Recalcula qué canales se ven en la lista (si está activado, oculta los caídos). */
+    private fun refreshShown() {
+        val cur = channels.getOrNull(index)
+        shown = if (repo.hideDead) channels.filter { !isDead(it) || it === cur } else channels
+        adapter.notifyDataSetChanged()
     }
 
     private fun hideList() {
@@ -425,7 +486,12 @@ class MainActivity : Activity() {
 
     private fun step(delta: Int) {
         if (channels.isEmpty()) return
-        tune((index + delta + channels.size) % channels.size)
+        var i = index
+        for (k in 0 until channels.size) {
+            i = (i + delta + channels.size) % channels.size
+            if (!(repo.hideDead && isDead(channels[i]))) break // salta los caídos si están ocultos
+        }
+        tune(i)
     }
 
     private fun isNumberKey(code: Int) =
@@ -526,6 +592,9 @@ class MainActivity : Activity() {
             "Actualizar canales ahora",
             "Cambiar dirección de la lista (GitHub)",
             "Cambiar pista de audio (idioma)",
+            "Probar canales (detectar caídos)",
+            "Ocultar canales caídos:  " + (if (repo.hideDead) "SÍ" else "NO"),
+            "Guía de programación (EPG)",
             "Buscar actualización de la app",
             "Cerrar"
         )
@@ -537,7 +606,14 @@ class MainActivity : Activity() {
                     0 -> updateNow(true)
                     1 -> askUrl()
                     2 -> showAudioMenu()
-                    3 -> AppUpdater.check(this, true)
+                    3 -> testChannels()
+                    4 -> {
+                        repo.hideDead = !repo.hideDead
+                        refreshShown()
+                        toast(if (repo.hideDead) "Canales caídos ocultos" else "Canales caídos visibles")
+                    }
+                    5 -> askEpg()
+                    6 -> AppUpdater.check(this, true)
                 }
             }
             .show()
@@ -628,6 +704,64 @@ class MainActivity : Activity() {
         tracks.getOrNull(pref)?.let { vp.setAudioTrack(it.id) }
     }
 
+    private fun testChannels() {
+        if (ChannelChecker.running) {
+            toast("Ya se están probando los canales")
+            return
+        }
+        val list = channels
+        showMessage("Probando canales…  0/${list.size}", 0)
+        ChannelChecker.run(repo, list, { done, total ->
+            if (done % 5 == 0 || done == total) {
+                runOnUiThread { showMessage("Probando canales…  $done/$total", 0) }
+            }
+        }, { dead ->
+            runOnUiThread {
+                if (dead < 0) {
+                    showMessage("No se pudo probar: revisá tu conexión a internet", 6000)
+                } else {
+                    showMessage("Listo: $dead de ${list.size} canales sin señal", 8000)
+                    refreshShown()
+                }
+            }
+        })
+    }
+
+    private fun askEpg() {
+        val edit = EditText(this)
+        edit.setText(repo.epgUrl)
+        edit.hint = "https://.../guia.xml.gz  (formato XMLTV)"
+        edit.setSingleLine(true)
+        val box = LinearLayout(this)
+        box.setPadding(48, 16, 48, 0)
+        box.addView(edit, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        AlertDialog.Builder(this)
+            .setTitle("Dirección de la guía de programación")
+            .setView(box)
+            .setPositiveButton("Guardar y actualizar") { _, _ ->
+                repo.epgUrl = edit.text.toString()
+                updateEpg(true)
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun updateEpg(manual: Boolean) {
+        val url = repo.epgUrl
+        if (url.isBlank()) {
+            if (manual) toast("Falta la dirección de la guía (Menú → Guía de programación)")
+            return
+        }
+        if (manual) toast("Descargando guía…")
+        Epg.refresh(url) { _, msg ->
+            runOnUiThread {
+                if (manual) toast(msg)
+                refreshShown()
+            }
+        }
+    }
+
     private fun askUrl() {
         val edit = EditText(this)
         edit.setText(repo.listUrl)
@@ -685,7 +819,7 @@ class MainActivity : Activity() {
         when {
             same -> {
                 index = found
-                adapter.notifyDataSetChanged() // sigue el mismo canal, sin cortar la imagen
+                refreshShown() // sigue el mismo canal, sin cortar la imagen
             }
             found >= 0 -> tune(found)
             else -> tune(index.coerceIn(0, list.size - 1))
@@ -696,17 +830,30 @@ class MainActivity : Activity() {
     // ───────────────────────── Adaptador de la lista ─────────────────────────
 
     private inner class ChannelAdapter : BaseAdapter() {
-        override fun getCount() = channels.size
-        override fun getItem(position: Int) = channels[position]
+        override fun getCount() = shown.size
+        override fun getItem(position: Int) = shown[position]
         override fun getItemId(position: Int) = position.toLong()
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
             val v = convertView
                 ?: LayoutInflater.from(this@MainActivity).inflate(R.layout.item_channel, parent, false)
-            val ch = channels[position]
+            val ch = shown[position]
+            val isCurrent = ch === channels.getOrNull(index)
+            val dead = isDead(ch)
             v.findViewById<TextView>(R.id.itemNum).text = ch.number.toString()
-            v.findViewById<TextView>(R.id.itemName).text =
-                (if (position == index) "▶ " else "") + ch.name
+            val nameView = v.findViewById<TextView>(R.id.itemName)
+            nameView.text = (if (isCurrent) "▶ " else "") + ch.name
+            nameView.setTextColor(if (dead) 0xFF78909C.toInt() else 0xFFFFFFFF.toInt())
             v.findViewById<TextView>(R.id.itemGroup).text = ch.group
+            LogoLoader.load(v.findViewById<ImageView>(R.id.itemLogo), ch.logo)
+            val nowView = v.findViewById<TextView>(R.id.itemNow)
+            val now = Epg.nowNext(ch).first
+            if (now != null) {
+                nowView.text = "${fmt(now.start)}  ${now.title}"
+                nowView.visibility = View.VISIBLE
+            } else {
+                nowView.visibility = View.GONE
+            }
+            v.findViewById<TextView>(R.id.itemStatus).visibility = if (dead) View.VISIBLE else View.GONE
             return v
         }
     }

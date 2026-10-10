@@ -30,6 +30,26 @@ class ChannelRepository(private val ctx: Context) {
         prefs.edit().putBoolean("vlc_${url.hashCode()}", value).apply()
     }
 
+    /** Dirección de la guía de programación (XMLTV, puede ser .xml o .xml.gz). */
+    var epgUrl: String
+        get() = prefs.getString("epg", "") ?: ""
+        set(v) {
+            prefs.edit().putString("epg", v.trim()).apply()
+        }
+
+    /** Ocultar los canales que la prueba marcó como caídos. */
+    var hideDead: Boolean
+        get() = prefs.getBoolean("hidedead", false)
+        set(v) {
+            prefs.edit().putBoolean("hidedead", v).apply()
+        }
+
+    fun getDeadUrls(): Set<String> = HashSet(prefs.getStringSet("dead", emptySet()) ?: emptySet())
+
+    fun setDeadUrls(s: Set<String>) {
+        prefs.edit().putStringSet("dead", HashSet(s)).apply()
+    }
+
     var lastName: String?
         get() = prefs.getString("last", null)
         set(v) {
