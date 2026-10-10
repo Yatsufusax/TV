@@ -25,6 +25,7 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -49,6 +50,7 @@ class MainActivity : Activity() {
     private var vlcPlayer: VlcPlayer? = null
     private var vlcAttached = false
     private var usingVlc = false
+    private var audioApplied = false // ya se aplicó la pista de audio guardada para este canal
     private val vlcUrls = HashSet<String>() // canales que ya sabemos que necesitan VLC
     private lateinit var osd: View
     private lateinit var osdNumber: TextView
@@ -157,6 +159,7 @@ class MainActivity : Activity() {
                     ui.removeCallbacks(retryPlayback)
                     hideMessage()
                     checkVideoTrack()
+                    applySavedAudioExo()
                 }
             }
         })
@@ -220,6 +223,7 @@ class MainActivity : Activity() {
 
     private fun startPlayback() {
         val ch = channels.getOrNull(index) ?: return
+        audioApplied = false
         if (vlcUrls.contains(ch.url)) {
             startVlc(ch)
             return
@@ -284,7 +288,10 @@ class MainActivity : Activity() {
             val vp = vlcPlayer ?: VlcPlayer(lib).also { p ->
                 p.setEventListener { ev ->
                     when (ev.type) {
-                        VlcPlayer.Event.Playing -> runOnUiThread { hideMessage() }
+                        VlcPlayer.Event.Playing -> runOnUiThread {
+                            hideMessage()
+                            ui.postDelayed({ applySavedAudioVlc() }, 1500)
+                        }
                         VlcPlayer.Event.EncounteredError -> runOnUiThread {
                             showMessage("Sin señal: ${channels.getOrNull(index)?.name ?: ""}", 0)
                         }
@@ -518,6 +525,7 @@ class MainActivity : Activity() {
         val items = arrayOf(
             "Actualizar canales ahora",
             "Cambiar dirección de la lista (GitHub)",
+            "Cambiar pista de audio (idioma)",
             "Buscar actualización de la app",
             "Cerrar"
         )
@@ -528,10 +536,81 @@ class MainActivity : Activity() {
                 when (which) {
                     0 -> updateNow(true)
                     1 -> askUrl()
-                    2 -> AppUpdater.check(this, true)
+                    2 -> showAudioMenu()
+                    3 -> AppUpdater.check(this, true)
                 }
             }
             .show()
+    }
+
+    // ───────────────────────── Pista de audio (idioma) ─────────────────────────
+
+    private fun showAudioMenu() {
+        val ch = channels.getOrNull(index) ?: return
+        if (usingVlc) {
+            val vp = vlcPlayer ?: return
+            val tracks = (vp.audioTracks ?: emptyArray()).filter { it.id >= 0 }
+            if (tracks.size <= 1) {
+                toast("Este canal no tiene otras pistas de audio")
+                return
+            }
+            val names = tracks.mapIndexed { i, t -> "${i + 1}.  ${t.name}" }.toTypedArray()
+            AlertDialog.Builder(this)
+                .setTitle("Pista de audio")
+                .setItems(names) { d, which ->
+                    d.dismiss()
+                    vp.setAudioTrack(tracks[which].id)
+                    repo.setAudioPref(ch.name, which)
+                    toast("Audio: ${tracks[which].name}")
+                }
+                .show()
+        } else {
+            val groups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
+            if (groups.size <= 1) {
+                toast("Este canal no tiene otras pistas de audio")
+                return
+            }
+            val names = groups.mapIndexed { i, g ->
+                val f = g.getTrackFormat(0)
+                "${i + 1}.  ${f.label ?: f.language ?: "Pista"}" + if (g.isSelected) "   ✔" else ""
+            }.toTypedArray()
+            AlertDialog.Builder(this)
+                .setTitle("Pista de audio")
+                .setItems(names) { d, which ->
+                    d.dismiss()
+                    selectAudioExo(which)
+                    repo.setAudioPref(ch.name, which)
+                    toast("Audio: pista ${which + 1}")
+                }
+                .show()
+        }
+    }
+
+    private fun selectAudioExo(which: Int) {
+        val groups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
+        val g = groups.getOrNull(which) ?: return
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setOverrideForType(TrackSelectionOverride(g.mediaTrackGroup, 0))
+            .build()
+    }
+
+    private fun applySavedAudioExo() {
+        if (audioApplied || usingVlc) return
+        val ch = channels.getOrNull(index) ?: return
+        val pref = repo.getAudioPref(ch.name)
+        audioApplied = true
+        if (pref >= 0) selectAudioExo(pref)
+    }
+
+    private fun applySavedAudioVlc() {
+        if (audioApplied || !usingVlc) return
+        val ch = channels.getOrNull(index) ?: return
+        val vp = vlcPlayer ?: return
+        val pref = repo.getAudioPref(ch.name)
+        audioApplied = true
+        if (pref < 0) return
+        val tracks = (vp.audioTracks ?: emptyArray()).filter { it.id >= 0 }
+        tracks.getOrNull(pref)?.let { vp.setAudioTrack(it.id) }
     }
 
     private fun askUrl() {

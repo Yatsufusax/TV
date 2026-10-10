@@ -16,6 +16,13 @@ class ChannelRepository(private val ctx: Context) {
             prefs.edit().putString("url", v.trim()).apply()
         }
 
+    /** Pista de audio elegida por el usuario para un canal (-1 = ninguna). */
+    fun getAudioPref(channel: String): Int = prefs.getInt("aud_$channel", -1)
+
+    fun setAudioPref(channel: String, value: Int) {
+        prefs.edit().putInt("aud_$channel", value).apply()
+    }
+
     var lastName: String?
         get() = prefs.getString("last", null)
         set(v) {
