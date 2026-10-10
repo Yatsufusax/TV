@@ -5,6 +5,9 @@ on:
   push:
     branches: [ main, master ]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -32,7 +35,12 @@ jobs:
           unzip -q /tmp/gradle.zip -d /tmp
 
       - name: Build debug APK
-        run: /tmp/gradle-8.7/bin/gradle --no-daemon assembleDebug
+        run: /tmp/gradle-8.7/bin/gradle --no-daemon assembleDebug -PbuildNumber=${{ github.run_number }}
+
+      - name: Prepare release files
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk TVCanales.apk
+          echo "${{ github.run_number }}" > version.txt
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -40,3 +48,11 @@ jobs:
           name: TVCanales-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      # Publica la última versión en "Releases" para que la app pueda actualizarse sola.
+      - name: Publish latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --cleanup-tag --yes || true
+          gh release create latest TVCanales.apk version.txt --title "Última versión" --notes "Build #${{ github.run_number }}" --latest

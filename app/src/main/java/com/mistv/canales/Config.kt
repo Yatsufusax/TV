@@ -6,6 +6,11 @@ object Config {
     // También se puede cambiar después desde la app (flecha derecha del control).
     const val DEFAULT_LIST_URL = ""
 
+    // Dirección donde GitHub publica la última versión de la app (Releases).
+    // Formato: https://github.com/USUARIO/REPO/releases/download/latest/
+    // (el repositorio tiene que ser público para que la app pueda descargarla)
+    const val UPDATE_BASE_URL = "https://github.com/Yatsufusax/TV/releases/download/latest/"
+
     const val OSD_MS = 4000L              // cuánto dura el cartel del canal
     const val DIGIT_COMMIT_MS = 1800L     // espera al tipear números
     const val AUTO_UPDATE_MS = 6L * 60 * 60 * 1000  // actualizar cada 6 horas

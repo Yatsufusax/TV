@@ -3,6 +3,9 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// GitHub pasa el número de build; sube solo en cada compilación (así Android reconoce las versiones nuevas).
+val buildNumber = (project.findProperty("buildNumber") as String?)?.toIntOrNull() ?: 1
+
 android {
     namespace = "com.mistv.canales"
     compileSdk = 34
@@ -11,8 +14,8 @@ android {
         applicationId = "com.mistv.canales"
         minSdk = 21
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = buildNumber
+        versionName = "1.$buildNumber"
 
         // Solo celulares y TV box reales (ahorra mucho tamaño de APK por libVLC)
         ndk {
@@ -20,7 +23,20 @@ android {
         }
     }
 
+    // Misma firma en todas las compilaciones: permite actualizar la app instalada sin desinstalarla.
+    signingConfigs {
+        create("shared") {
+            storeFile = file("tvcanales.jks")
+            storePassword = "tvcanales"
+            keyAlias = "tvcanales"
+            keyPassword = "tvcanales"
+        }
+    }
+
     buildTypes {
+        getByName("debug") {
+            signingConfig = signingConfigs.getByName("shared")
+        }
         release {
             isMinifyEnabled = false
         }

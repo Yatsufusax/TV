@@ -160,6 +160,10 @@ class MainActivity : Activity() {
                 }
             }
         })
+        // Si el canal trae varias pistas de audio, preferir español.
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setPreferredAudioLanguages("es", "spa")
+            .build()
         playerView.player = player
 
         val last = repo.lastName
@@ -167,6 +171,7 @@ class MainActivity : Activity() {
         tune(index)
 
         ui.postDelayed(autoUpdate, 1500)
+        ui.postDelayed({ AppUpdater.check(this, false) }, 5000)
     }
 
     override fun onStart() {
@@ -298,6 +303,7 @@ class MainActivity : Activity() {
                 ?: "Mozilla/5.0 (Linux; Android 11; Google TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
             val media = Media(lib, Uri.parse(ch.url))
             media.addOption(":http-user-agent=$ua")
+            media.addOption(":audio-language=spa,es") // preferir audio en español
             ch.referer?.let { media.addOption(":http-referrer=$it") }
             vp.media = media
             media.release()
@@ -512,15 +518,17 @@ class MainActivity : Activity() {
         val items = arrayOf(
             "Actualizar canales ahora",
             "Cambiar dirección de la lista (GitHub)",
+            "Buscar actualización de la app",
             "Cerrar"
         )
         AlertDialog.Builder(this)
-            .setTitle("Menú  ·  ${channels.size} canales")
+            .setTitle("Menú  ·  ${channels.size} canales  ·  v${AppUpdater.currentVersion(this)}")
             .setItems(items) { d, which ->
                 d.dismiss()
                 when (which) {
                     0 -> updateNow(true)
                     1 -> askUrl()
+                    2 -> AppUpdater.check(this, true)
                 }
             }
             .show()
