@@ -20,11 +20,13 @@ import android.widget.LinearLayout
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
@@ -127,7 +129,9 @@ class MainActivity : Activity() {
             tune(pos)
         }
 
-        player = ExoPlayer.Builder(this).build()
+        // Si el decodificador de video principal falla, prueba con otro (software) antes de rendirse.
+        val renderers = DefaultRenderersFactory(this).setEnableDecoderFallback(true)
+        player = ExoPlayer.Builder(this, renderers).build()
         player.playWhenReady = true
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
@@ -138,6 +142,7 @@ class MainActivity : Activity() {
                 if (playbackState == Player.STATE_READY) {
                     ui.removeCallbacks(retryPlayback)
                     hideMessage()
+                    checkVideoTrack()
                 }
             }
         })
@@ -220,6 +225,23 @@ class MainActivity : Activity() {
         player.setMediaSource(source)
         player.prepare()
         player.playWhenReady = true
+    }
+
+    // Diagnóstico: avisa en pantalla si el canal suena pero el video no se puede mostrar.
+    private fun checkVideoTrack() {
+        val groups = player.currentTracks.groups
+        val video = groups.filter { it.type == C.TRACK_TYPE_VIDEO }
+        val hasAudio = groups.any { it.type == C.TRACK_TYPE_AUDIO }
+        if (!hasAudio) return
+        if (video.isEmpty()) {
+            showMessage("Este canal no trae video (solo audio)", 8000)
+        } else if (video.none { it.isSelected }) {
+            val f = video.first().getTrackFormat(0)
+            showMessage(
+                "Video no compatible con este equipo\n${f.sampleMimeType ?: f.codecs ?: "?"}  ${f.width}x${f.height}",
+                10000
+            )
+        }
     }
 
     private fun onPlaybackError() {
