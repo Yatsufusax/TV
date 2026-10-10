@@ -250,19 +250,22 @@ class MainActivity : Activity() {
         player.playWhenReady = true
     }
 
-    // Diagnóstico: avisa en pantalla si el canal suena pero el video no se puede mostrar.
+    // Si el equipo no puede decodificar el video o el audio del canal, pasamos al motor VLC.
     private fun checkVideoTrack() {
+        if (usingVlc) return
         val groups = player.currentTracks.groups
         val video = groups.filter { it.type == C.TRACK_TYPE_VIDEO }
-        val hasAudio = groups.any { it.type == C.TRACK_TYPE_AUDIO }
-        if (!hasAudio) return
-        if (video.isEmpty()) {
-            showMessage("Este canal no trae video (solo audio)", 8000)
-        } else if (video.none { it.isSelected }) {
-            // El equipo no puede decodificar este video (ej. MPEG-2): pasamos al motor VLC.
+        val audio = groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+
+        val videoBroken = video.isNotEmpty() && video.none { it.isSelected }
+        val audioBroken = audio.isNotEmpty() && audio.none { it.isSelected }
+
+        if (videoBroken || audioBroken) {
             val ch = channels.getOrNull(index) ?: return
             vlcUrls.add(ch.url)
             startVlc(ch)
+        } else if (audio.isNotEmpty() && video.isEmpty()) {
+            showMessage("Este canal no trae video (solo audio)", 8000)
         }
     }
 
