@@ -595,6 +595,7 @@ class MainActivity : Activity() {
             "Probar canales (detectar caídos)",
             "Ocultar canales caídos:  " + (if (repo.hideDead) "SÍ" else "NO"),
             "Guía de programación (EPG)",
+            "Guía: diagnóstico (canal actual)",
             "Buscar actualización de la app",
             "Cerrar"
         )
@@ -613,7 +614,12 @@ class MainActivity : Activity() {
                         toast(if (repo.hideDead) "Canales caídos ocultos" else "Canales caídos visibles")
                     }
                     5 -> askEpg()
-                    6 -> AppUpdater.check(this, true)
+                    6 -> AlertDialog.Builder(this)
+                        .setTitle("Diagnóstico de la guía")
+                        .setMessage(Epg.debug(channels.getOrNull(index)))
+                        .setPositiveButton("Cerrar", null)
+                        .show()
+                    7 -> AppUpdater.check(this, true)
                 }
             }
             .show()

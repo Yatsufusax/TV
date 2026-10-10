@@ -25,28 +25,75 @@ object Epg {
         return t.lowercase().replace(Regex("[^a-z0-9]"), "")
     }
 
-    private fun find(ch: Channel): List<Prog>? {
+    private val suffixes = listOf(
+        "latinamerica", "latinoamerica", "southatlantic", "panregional", "latam",
+        "fhd", "uhd", "hd", "sd", "4k",
+        "us", "ar", "cl", "co", "mx", "py", "br", "es", "pe", "uy"
+    )
+
+    /** Variantes de un nombre o código: sin tildes, sin HD/SD ni sufijo de país o región. */
+    fun variants(raw: String): List<String> {
+        val out = LinkedHashSet<String>()
+        for (base in listOf(raw, raw.replace(Regex("\\([^)]*\\)"), ""))) {
+            var cur = norm(base)
+            if (cur.isEmpty()) continue
+            out.add(cur)
+            var changed = true
+            while (changed) {
+                changed = false
+                for (sfx in suffixes) {
+                    if (cur.endsWith(sfx) && cur.length - sfx.length >= 4) {
+                        cur = cur.removeSuffix(sfx)
+                        out.add(cur)
+                        changed = true
+                        break
+                    }
+                }
+            }
+        }
+        return out.toList()
+    }
+
+    /** Devuelve (id de la guía encontrado, claves que se probaron). */
+    private fun findId(ch: Channel): Pair<String?, List<String>> {
         val p = progs
         val a = alias
-        if (p.isEmpty()) return null
         val keys = ArrayList<String>()
         val tid = ch.tvgId
         if (tid != null) {
             keys.add(tid)
             keys.add(tid.substringBefore('@'))
-            keys.add(norm(tid))
-            keys.add(norm(tid.substringBefore('@')))
+            keys.addAll(variants(tid.substringBefore('@')))
         }
-        keys.add(norm(ch.name))
+        keys.addAll(variants(ch.name))
         for (k in keys) {
             if (k.isEmpty()) continue
             val id = if (p.containsKey(k)) k else a[k]
-            if (id != null) {
-                val l = p[id]
-                if (l != null && l.isNotEmpty()) return l
-            }
+            if (id != null && !p[id].isNullOrEmpty()) return Pair(id, keys)
         }
-        return null
+        return Pair(null, keys)
+    }
+
+    private fun find(ch: Channel): List<Prog>? {
+        if (progs.isEmpty()) return null
+        val id = findId(ch).first ?: return null
+        return progs[id]
+    }
+
+    /** Texto para entender por qué un canal tiene o no tiene guía. */
+    fun debug(ch: Channel?): String {
+        val p = progs
+        val sb = StringBuilder()
+        sb.append("Guía cargada: ${p.size} canales con programas\n")
+        sb.append("Ejemplos de la guía:\n  ").append(p.keys.sorted().take(14).joinToString(", ")).append("\n\n")
+        if (ch != null) {
+            val r = findId(ch)
+            sb.append("Canal actual: ${ch.name}\n")
+            sb.append("tvg-id: ${ch.tvgId ?: "(no tiene)"}\n")
+            sb.append("Buscado como: ${r.second.distinct().take(8).joinToString(", ")}\n")
+            sb.append("Resultado: ").append(if (r.first != null) "SÍ → ${r.first}" else "no encontrado")
+        }
+        return sb.toString()
     }
 
     /** Programa actual y el siguiente (cualquiera puede ser null). */
@@ -129,13 +176,12 @@ object Epg {
                     "channel" -> {
                         chId = parser.getAttributeValue(null, "id")
                         val id = chId
-                        if (id != null) alias[norm(id)] = id
+                        if (id != null) for (v in variants(id)) if (!alias.containsKey(v)) alias[v] = id
                     }
                     "display-name" -> {
                         val id = chId
                         if (id != null) {
-                            val k = norm(parser.nextText())
-                            if (k.isNotEmpty() && !alias.containsKey(k)) alias[k] = id
+                            for (v in variants(parser.nextText())) if (!alias.containsKey(v)) alias[v] = id
                         }
                     }
                     "programme" -> {
