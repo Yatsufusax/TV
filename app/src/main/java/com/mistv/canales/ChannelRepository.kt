@@ -23,6 +23,13 @@ class ChannelRepository(private val ctx: Context) {
         prefs.edit().putInt("aud_$channel", value).apply()
     }
 
+    /** Canales que se reproducen siempre con VLC (el equipo no puede con su video o audio). */
+    fun needsVlc(url: String): Boolean = prefs.getBoolean("vlc_${url.hashCode()}", false)
+
+    fun setNeedsVlc(url: String, value: Boolean) {
+        prefs.edit().putBoolean("vlc_${url.hashCode()}", value).apply()
+    }
+
     var lastName: String?
         get() = prefs.getString("last", null)
         set(v) {

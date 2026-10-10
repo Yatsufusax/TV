@@ -51,7 +51,6 @@ class MainActivity : Activity() {
     private var vlcAttached = false
     private var usingVlc = false
     private var audioApplied = false // ya se aplicó la pista de audio guardada para este canal
-    private val vlcUrls = HashSet<String>() // canales que ya sabemos que necesitan VLC
     private lateinit var osd: View
     private lateinit var osdNumber: TextView
     private lateinit var osdName: TextView
@@ -224,7 +223,7 @@ class MainActivity : Activity() {
     private fun startPlayback() {
         val ch = channels.getOrNull(index) ?: return
         audioApplied = false
-        if (vlcUrls.contains(ch.url)) {
+        if (repo.needsVlc(ch.url)) {
             startVlc(ch)
             return
         }
@@ -271,7 +270,7 @@ class MainActivity : Activity() {
 
         if (videoBroken || audioBroken) {
             val ch = channels.getOrNull(index) ?: return
-            vlcUrls.add(ch.url)
+            repo.setNeedsVlc(ch.url, true)
             startVlc(ch)
         } else if (audio.isNotEmpty() && video.isEmpty()) {
             showMessage("Este canal no trae video (solo audio)", 8000)
@@ -281,6 +280,7 @@ class MainActivity : Activity() {
     // ───────────────────────── Motor VLC (respaldo) ─────────────────────────
 
     private fun startVlc(ch: Channel) {
+        audioApplied = false
         try {
             player.stop()
             ui.removeCallbacks(retryPlayback)
@@ -545,50 +545,65 @@ class MainActivity : Activity() {
 
     // ───────────────────────── Pista de audio (idioma) ─────────────────────────
 
+    private fun exoAudioGroups() = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+
     private fun showAudioMenu() {
         val ch = channels.getOrNull(index) ?: return
         if (usingVlc) {
             val vp = vlcPlayer ?: return
             val tracks = (vp.audioTracks ?: emptyArray()).filter { it.id >= 0 }
-            if (tracks.size <= 1) {
-                toast("Este canal no tiene otras pistas de audio")
-                return
-            }
-            val names = tracks.mapIndexed { i, t -> "${i + 1}.  ${t.name}" }.toTypedArray()
+            val names = ArrayList<String>()
+            tracks.forEachIndexed { i, t -> names.add("${i + 1}.  ${t.name}") }
+            names.add("↩  Volver al reproductor normal (este canal)")
             AlertDialog.Builder(this)
                 .setTitle("Pista de audio")
-                .setItems(names) { d, which ->
+                .setItems(names.toTypedArray()) { d, which ->
                     d.dismiss()
-                    vp.setAudioTrack(tracks[which].id)
-                    repo.setAudioPref(ch.name, which)
-                    toast("Audio: ${tracks[which].name}")
+                    if (which < tracks.size) {
+                        vp.setAudioTrack(tracks[which].id)
+                        repo.setAudioPref(ch.name, which)
+                        toast("Audio: ${tracks[which].name}")
+                    } else {
+                        repo.setNeedsVlc(ch.url, false)
+                        startPlayback()
+                    }
                 }
                 .show()
         } else {
-            val groups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
-            if (groups.size <= 1) {
-                toast("Este canal no tiene otras pistas de audio")
-                return
-            }
-            val names = groups.mapIndexed { i, g ->
+            val groups = exoAudioGroups()
+            val names = ArrayList<String>()
+            groups.forEachIndexed { i, g ->
                 val f = g.getTrackFormat(0)
-                "${i + 1}.  ${f.label ?: f.language ?: "Pista"}" + if (g.isSelected) "   ✔" else ""
-            }.toTypedArray()
+                val name = f.label ?: f.language ?: "Pista"
+                val mark = (if (g.isSelected) "   ✔" else "") + (if (!g.isSupported) "   (este equipo no la soporta → usa VLC)" else "")
+                names.add("${i + 1}.  $name$mark")
+            }
+            names.add("▶  Probar con VLC (muestra todas las pistas)")
             AlertDialog.Builder(this)
                 .setTitle("Pista de audio")
-                .setItems(names) { d, which ->
+                .setItems(names.toTypedArray()) { d, which ->
                     d.dismiss()
-                    selectAudioExo(which)
-                    repo.setAudioPref(ch.name, which)
-                    toast("Audio: pista ${which + 1}")
+                    if (which < groups.size) {
+                        repo.setAudioPref(ch.name, which)
+                        selectAudioExo(which)
+                    } else {
+                        repo.setNeedsVlc(ch.url, true)
+                        startVlc(ch)
+                    }
                 }
                 .show()
         }
     }
 
     private fun selectAudioExo(which: Int) {
-        val groups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
-        val g = groups.getOrNull(which) ?: return
+        val g = exoAudioGroups().getOrNull(which) ?: return
+        if (!g.isSupported) {
+            // El equipo no puede decodificar esa pista: pasamos este canal a VLC.
+            val ch = channels.getOrNull(index) ?: return
+            repo.setNeedsVlc(ch.url, true)
+            startVlc(ch)
+            return
+        }
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .setOverrideForType(TrackSelectionOverride(g.mediaTrackGroup, 0))
             .build()
