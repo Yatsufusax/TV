@@ -23,7 +23,10 @@ object ChannelChecker {
         }
     }
 
-    fun isDead(url: String): Boolean = synchronized(dead) { dead.contains(key(url)) }
+    fun isDeadUrl(url: String): Boolean = synchronized(dead) { dead.contains(key(url)) }
+
+    /** Un canal está caído solo si TODAS sus señales (principal y respaldos) están caídas. */
+    fun isDead(ch: Channel): Boolean = ch.sources.all { isDeadUrl(it.url) }
 
     /** onDone recibe la cantidad de canales caídos, o -1 si parece que no hay internet. */
     fun run(
@@ -35,17 +38,19 @@ object ChannelChecker {
         if (running) return
         running = true
         Thread {
-            val total = list.size
+            // Se prueba cada link (principal y respaldos), sin repetir.
+            val targets = list.flatMap { it.sources }.distinctBy { it.url }
+            val total = targets.size
             val done = AtomicInteger(0)
             val newDead = Collections.synchronizedSet(HashSet<String>())
             val pool = Executors.newFixedThreadPool(8)
             val latch = CountDownLatch(total)
-            for (ch in list) {
+            for (src in targets) {
                 pool.execute {
                     try {
-                        if (!probe(ch)) newDead.add(key(ch.url))
+                        if (!probe(src)) newDead.add(key(src.url))
                     } catch (t: Throwable) {
-                        newDead.add(key(ch.url))
+                        newDead.add(key(src.url))
                     } finally {
                         onProgress(done.incrementAndGet(), total)
                         latch.countDown()
@@ -64,12 +69,12 @@ object ChannelChecker {
                     dead.addAll(snapshot)
                 }
                 repo.setDeadUrls(snapshot)
-                onDone(snapshot.size)
+                onDone(list.count { isDead(it) }) // canales sin NINGUNA señal que ande
             }
         }.start()
     }
 
-    private fun probe(ch: Channel): Boolean {
+    private fun probe(ch: Source): Boolean {
         val conn = URL(ch.url).openConnection() as HttpURLConnection
         conn.connectTimeout = 6000
         conn.readTimeout = 7000

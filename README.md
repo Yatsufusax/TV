@@ -62,6 +62,25 @@ Cada canal toma su número según el orden de la lista (1, 2, 3 …). Para que u
 
 Los canales sin `tvg-chno` ocupan los números libres en orden.
 
+## Canales de respaldo
+
+Para darle un respaldo a un canal, repetí su línea `#EXTINF` con **el mismo nombre y grupo**
+y otro link. La app los junta en **un solo canal** (no aparece repetido en la lista):
+
+```
+#EXTINF:-1 group-title="Deportes",ESPN
+http://link-principal/index.m3u8
+#EXTINF:-1 group-title="Deportes",ESPN
+http://link-de-respaldo/index.m3u8
+```
+
+* El primer link es el principal; los siguientes se prueban en orden si el anterior falla.
+* Si un respaldo anduvo, la app lo recuerda para ese canal hasta que se cierre.
+* Si fallan todos, muestra "Sin señal" y vuelve a intentar desde el principal cada 10 s.
+* "Probar canales" prueba todos los links y marca un canal como caído solo si caen todos.
+* Cada link puede llevar su propio `#EXTVLCOPT` (referer / user-agent).
+* Se admiten links `.m3u8` (HLS), `.mpd` (DASH) y TS directo.
+
 ## Notas técnicas
 
 * Reproductor: Media3 / ExoPlayer. Admite HLS (.m3u8) y transmisiones directas TS.

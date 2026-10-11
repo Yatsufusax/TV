@@ -57,6 +57,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.3.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
     // Motor de VLC: reproduce MPEG-2 y otros formatos que el equipo no soporta
     implementation("org.videolan.android:libvlc-all:3.6.0")

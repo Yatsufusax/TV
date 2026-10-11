@@ -62,6 +62,8 @@ https://www.desde-paraguay.com/mega.m3u8
 #EXTINF:-1 tvg-id="Nanduti.py@SD" tvg-logo="https://i.imgur.com/vnIkhRO.png" group-title="Paraguay | Noticias",Ñandutí
 #EXTVLCOPT:http-referrer=https://nanduti.com.py/nanduti-tv
 https://nanduti.b-cdn.net/Source.m3u8
+#EXTINF:-1 group-title="Paraguay | Noticias",Ñandutí
+https://copacogen.desdeparaguay.net/nandutitv/nandutitv_baja/index.m3u8
 #EXTINF:-1 tvg-id="NPY.py@SD" tvg-logo="https://i.imgur.com/pUEkaiW.png" group-title="Paraguay | Noticias",NPY
 #EXTVLCOPT:http-referrer=https://www.npy.com.py/
 https://copacogen.desdeparaguay.net/npy/npy_py_alta/playlist.m3u8?admin=tvaccion
@@ -84,6 +86,8 @@ https://video.hostingcaaguazu.com:19360/nandeportetepe/nandeportetepe.m3u8
 https://live.enhdtv.com:19360/nexthd/nexthd.m3u8
 #EXTINF:-1 tvg-id="VenusMedia.py@SD" tvg-logo="https://i.imgur.com/XwmUbfp.png" group-title="Paraguay | Música y Radio",Venus Media
 https://tigocloud.desdeparaguay.net/venusmedia/venusmedia/playlist.m3u8
+#EXTINF:-1 group-title="Paraguay | Música y Radio",Hei Now
+https://copacogen.desdeparaguay.net/heitv/heitv_py_alta/playlist.m3u8?admin=nacion
 #EXTINF:-1 tvg-id="CaritasTV.py@SD" tvg-logo="https://i.ibb.co/rwkpQx6/unnamed-2.png" group-title="Paraguay | Religión",Cáritas TV
 https://rds3.desdeparaguay.net/caritastv/caritastv/playlist.m3u8
 #EXTINF:-1 tvg-id="NandejaraNeeTV.py@SD" tvg-logo="https://i.imgur.com/VFxuBdL.jpg" group-title="Paraguay | Religión",Ñandejara Ñe'e TV
@@ -92,10 +96,16 @@ https://copacogen.desdeparaguay.net/nandejaraneetv/nandejaraneetv/playlist.m3u8?
 https://copacoradios.desdeparaguay.net/rcctv/rcctv/playlist.m3u8?admin=nacion
 #EXTINF:-1 tvg-id="TigoSports.py@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3b/Tigo_Sports_2025.png/960px-Tigo_Sports_2025.png" group-title="Paraguay | Deportes",Tigo Sports
 http://45.134.141.161:2200/ARG/Tigo_Sports/tracks-v1a1/mono.m3u8
+#EXTINF:-1 group-title="Paraguay | Deportes",Tigo Sports
+http://45.170.130.224:8000/play/a04k/index.m3u8?hls
 #EXTINF:-1 tvg-id="Telefe.ar@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cc/Telefe_%28nuevo_logo%29.png/960px-Telefe_%28nuevo_logo%29.png" group-title="Argentina",Telefe
 http://45.173.231.22:8000/play/a053/index.m3u8
+#EXTINF:-1 group-title="Argentina",Telefe
+http://200.115.120.1:8000/play/ca016/index.m3u8
 #EXTINF:-1 tvg-id="TelefeBuenosAires.ar@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/c/cc/Telefe_%28nuevo_logo%29.png/960px-Telefe_%28nuevo_logo%29.png" group-title="Argentina",Telefe Buenos Aires
 http://45.134.141.161:2200/ARG/TELEFE_HD/index.m3u8
+#EXTINF:-1 group-title="Argentina",El Trece
+http://200.7.99.59:8000/play/a0gm/index.m3u8
 #EXTINF:-1 tvg-id="FoxSports.ar@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/FOX_Sports_logo.svg/960px-FOX_Sports_logo.svg.png" group-title="Argentina | Deportes",Fox Sports
 http://138.59.227.20:8000/play/a085/index.m3u8
 #EXTINF:-1 tvg-id="TyCSports.ar@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/TyC_Sports_logo.svg/960px-TyC_Sports_logo.svg.png" group-title="Argentina | Deportes",TyC Sports
@@ -108,27 +118,59 @@ http://38.187.7.252:8000/play/a03d/index.m3u8
 #EXTINF:-1 group-title="Deportes",ESPN
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0s7
+#EXTINF:-1 group-title="Deportes",ESPN
+http://190.128.214.97:64333/play/a02i/index.m3u8
+#EXTINF:-1 group-title="Deportes",ESPN
+https://barinaslive1.boldmss.com/ESPN/ESPN.isml/ESPN.m3u8
+#EXTINF:-1 group-title="Deportes",ESPN
+https://barinaslive1.boldmss.com/ESPN/ESPN.isml/ESPN.mpd?
 #EXTINF:-1 group-title="Deportes",ESPN 2
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0qj
+#EXTINF:-1 group-title="Deportes",ESPN 2
+https://barinaslive1.boldmss.com/ESPN_2/ESPN_2.isml/ESPN_2.m3u8
+#EXTINF:-1 group-title="Deportes",ESPN 2
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn2-mux/playlist.m3u8
 #EXTINF:-1 group-title="Deportes",ESPN 3
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0s6
+#EXTINF:-1 group-title="Deportes",ESPN 3
+https://barinaslive1.boldmss.com/ESPN_3/ESPN_3.isml/ESPN_3.m3u8
+#EXTINF:-1 group-title="Deportes",ESPN 3
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn3-mux/playlist.m3u8
 #EXTINF:-1 group-title="Deportes",ESPN 4
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0s9
+#EXTINF:-1 group-title="Deportes",ESPN 4
+https://barinaslive1.boldmss.com/ESPN_4/ESPN_4.isml/ESPN_4.m3u8
+#EXTINF:-1 group-title="Deportes",ESPN 4
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn4-mux/playlist.m3u8
 #EXTINF:-1 group-title="Deportes",ESPN 5
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0s5
+#EXTINF:-1 group-title="Deportes",ESPN 5
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn5-mux/playlist.m3u8
+#EXTINF:-1 group-title="Deportes",ESPN 5
+https://barinaslive1.boldmss.com/ESPN_5/ESPN_5.isml/ESPN_5.m3u8
 #EXTINF:-1 group-title="Deportes",ESPN 6
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0s3
+#EXTINF:-1 group-title="Deportes",ESPN 6
+https://barinaslive1.boldmss.com/ESPN_6/ESPN_6.isml/ESPN_6.m3u8
+#EXTINF:-1 group-title="Deportes",ESPN 6
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn6-mux/playlist.m3u8
 #EXTINF:-1 group-title="Deportes",ESPN 7
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0s8
+#EXTINF:-1 group-title="Deportes",ESPN 7
+https://barinaslive1.boldmss.com/ESPN_7/ESPN_7.isml/ESPN_7.m3u8
+#EXTINF:-1 group-title="Deportes",ESPN 7
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn7-mux/playlist.m3u8
 #EXTINF:-1 group-title="Deportes",ESPN Premium
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0r2
+#EXTINF:-1 group-title="Deportes",ESPN Premium
+https://bantel-cdn1.iptvperu.tv:1936/btnscrtn/espn_premium.stream/playlist.m3u8
 #EXTINF:-1 tvg-id="ESPNPremium.ar@HD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/ESPN_Premium_logo.svg/960px-ESPN_Premium_logo.svg.png" group-title="Deportes",ESPN Premium (1080p)
 http://190.128.214.97:64333/play/a02i/index.m3u8
 #EXTINF:-1 group-title="Deportes",TNT Sports
@@ -142,6 +184,8 @@ http://45.171.64.30:6060/play/a005/index.m3u8
 #EXTINF:-1 group-title="Películas y Series",AXN
 #EXTVLCOPT:network-caching=1000
 http://181.78.8.199:8000/play/a0am/index.m3u8
+#EXTINF:-1 group-title="Películas y Series",AXN
+http://138.121.15.230:9002/AXN/index.m3u8
 #EXTINF:-1 group-title="Películas y Series",AXN HD
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0q0
@@ -150,9 +194,13 @@ http://181.78.12.119:16123/play/ch46/index.m3u8
 #EXTINF:-1 group-title="Películas y Series",Cinecanal
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0pp
+#EXTINF:-1 group-title="Películas y Series",Cinecanal
+http://138.121.15.230:9002/CINECANAL/index.m3u8
 #EXTINF:-1 group-title="Películas y Series",De Película
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0qb
+#EXTINF:-1 group-title="Películas y Series",De Película
+http://38.19.41.46:8081/DEPELICULA/index.m3u8
 #EXTINF:-1 group-title="Películas y Series",HBO
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0qd
@@ -164,19 +212,27 @@ http://181.78.79.131:8000/play/a0qy
 #EXTINF:-1 group-title="Películas y Series",Pasiones
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0qh
+#EXTINF:-1 group-title="Películas y Series",Pasiones
+http://15.204.246.24:8080/PasionesHD/index.m3u8
 #EXTINF:-1 group-title="Películas y Series",Space
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0q2
+#EXTINF:-1 group-title="Películas y Series",Space
+http://45.171.64.30:6060/play/a04n/index.m3u8
 #EXTINF:-1 tvg-id="StarChannel.co@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Star_Channel_2020.svg/960px-Star_Channel_2020.svg.png" group-title="Películas y Series",Star Channel
 http://190.61.47.54:8000/play/a035/index.m3u8
 #EXTINF:-1 group-title="Películas y Series",Tlnovelas
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0t6
+#EXTINF:-1 group-title="Películas y Series",Tlnovelas
+http://167.249.23.102:8000/play/a0g8/index.m3u8
 #EXTINF:-1 tvg-id="TlnovelasMexico.mx@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/6/62/Tlnovelas_logo_2021.png" group-title="Películas y Series",Tlnovelas (1080p)
 http://167.249.23.102:8000/play/a0g8/index.m3u8
 #EXTINF:-1 group-title="Películas y Series",TNT Novelas
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0na
+#EXTINF:-1 group-title="Películas y Series",TNT Novelas
+http://190.93.224.42/TNT-NOVELAS/index.m3u8
 #EXTINF:-1 tvg-id="TNTNovelas.us@Panregional" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/TNT_Novelas_2025.svg/1920px-TNT_Novelas_2025.svg.png" group-title="Películas y Series",TNT Novelas (1080p)
 http://190.93.224.42/TNT-NOVELAS/index.m3u8
 #EXTINF:-1 tvg-id="TNTSeriesLatinAmerica.us@Panregional" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/7/75/TNT_Series_Logo_2016.png" group-title="Películas y Series",TNT Series
@@ -186,24 +242,50 @@ https://dtsszjrztq9ti.cloudfront.net/v1/master/3722c60a815c199d9c0ef36c5b73da68a
 #EXTINF:-1 group-title="Películas y Series",Universal Channel
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0mw
+#EXTINF:-1 group-title="Películas y Series",Universal Channel
+http://38.134.250.110:8000/play/a006/index.m3u8
+#EXTINF:-1 group-title="Películas y Series",Universal Channel
+http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/universal/playlist.m3u8
 #EXTINF:-1 tvg-id="UniversalComedy.us@SD" tvg-logo="https://i.imgur.com/avBL8pQ.png" http-user-agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" group-title="Películas y Series",Universal Comedy
 #EXTVLCOPT:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
 http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/universalcomedy/playlist.m3u8
 #EXTINF:-1 group-title="Películas y Series",Warner TV
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0sz
+#EXTINF:-1 group-title="Películas y Series",Warner TV
+http://38.134.250.110:8000/play/a029/index.m3u8
 #EXTINF:-1 group-title="Películas y Series",Warner TV HD
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0pz
+#EXTINF:-1 group-title="Películas y Series",Warner TV HD
+http://38.134.250.110:8000/play/a029/index.m3u8
+#EXTINF:-1 group-title="Películas y Series",Golden
+http://181.78.12.119:16123/play/ch46/index.m3u8
+#EXTINF:-1 group-title="Películas y Series",TNT
+http://45.171.64.30:6060/play/a03i/index.m3u8
+#EXTINF:-1 group-title="Películas y Series",Studio Universal
+http://187.102.210.46/universo/index.m3u8
+#EXTINF:-1 group-title="Películas y Series",Universal Cinema
+http://45.167.1.138:8000/play/a06m
+#EXTINF:-1 group-title="Películas y Series",Universal Crime
+http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/universalcrime/playlist.m3u8
+#EXTINF:-1 group-title="Películas y Series",Sony Channel
+http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/sonychannel.stream/playlist.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",13 C
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0pm
+#EXTINF:-1 group-title="Entretenimiento y General",13 C
+https://origin.dpsgo.com/ssai/event/GI-9cp_bT8KcerLpZwkuhw/master.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",A&E
 #EXTVLCOPT:network-caching=1000
 http://181.78.8.199:8000/play/a0al/index.m3u8
+#EXTINF:-1 group-title="Entretenimiento y General",A&E
+http://138.121.15.230:9002/A&E/index.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",A&E HD
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0mt
+#EXTINF:-1 group-title="Entretenimiento y General",A&E HD
+http://138.121.15.230:9002/A&E/index.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",Adult Swim
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0pk
@@ -213,15 +295,21 @@ http://181.78.8.199:8000/play/a0fo/index.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",ATV
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0sp
+#EXTINF:-1 group-title="Entretenimiento y General",ATV
+http://190.93.224.42/ATV/index.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",BITME
 #EXTVLCOPT:network-caching=1000
 http://181.78.8.199:8000/play/a0ga/index.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",Canal Congreso
 #EXTVLCOPT:network-caching=1000
 http://181.78.8.199:8000/play/a0d2/index.m3u8
+#EXTINF:-1 group-title="Entretenimiento y General",Canal Congreso
+http://138.121.15.230:9002/CANAL-CONGRESO/index.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",Canal de las Estrellas
 #EXTVLCOPT:network-caching=1000
 http://181.78.8.199:8000/play/a0as/index.m3u8
+#EXTINF:-1 group-title="Entretenimiento y General",Canal de las Estrellas
+https://channel01-onlymex.akamaized.net/hls/live/2022749/event01/index.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",Canal del Congreso
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0se
@@ -242,6 +330,8 @@ http://181.78.8.199:8000/play/a0cy/index.m3u8
 http://181.78.79.131:8000/play/a0mu
 #EXTINF:-1 tvg-id="ELatinAmerica.us@South" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/E%21_Logo_2012.svg/500px-E%21_Logo_2012.svg.png" group-title="Entretenimiento y General",E!
 http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/entertainment.stream/playlist.m3u8
+#EXTINF:-1 group-title="Entretenimiento y General",E!
+http://72.1.184.5:8089/play/a05d/index.m3u8
 #EXTINF:-1 tvg-id="FXLatinAmerica.us@South" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/FX_International_logo.svg/960px-FX_International_logo.svg.png" group-title="Entretenimiento y General",FX
 http://72.1.184.5:8089/play/a05i/index.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",ID
@@ -250,9 +340,15 @@ http://181.78.79.131:8000/play/a0sl
 #EXTINF:-1 group-title="Entretenimiento y General",Las Estrellas
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0qu
+#EXTINF:-1 group-title="Entretenimiento y General",Las Estrellas
+https://channel01-onlymex.akamaized.net/hls/live/2022749/event01/index.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",Lifetime
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0pi
+#EXTINF:-1 group-title="Entretenimiento y General",Lifetime
+http://138.121.15.230:9002/LIFETIME/index.m3u8
+#EXTINF:-1 group-title="Entretenimiento y General",Lifetime
+http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/lifetime.stream/playlist.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",MTV
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0nc
@@ -260,24 +356,38 @@ http://181.78.79.131:8000/play/a0nc
 http://45.171.64.30:6060/play/a014/index.m3u8
 #EXTINF:-1 tvg-id="TelemundoInternacional.us@South" tvg-logo="https://i.imgur.com/j2O4ndp.png" group-title="Entretenimiento y General",Telemundo Internacional
 http://138.121.15.230:9002/TELEMUNDO/index.m3u8
+#EXTINF:-1 group-title="Entretenimiento y General",Telemundo Internacional
+http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/telemundo.stream/playlist.m3u8
+#EXTINF:-1 group-title="Entretenimiento y General",Telemundo Internacional
+http://190.60.46.156:8089/TELEMUNDO/index.m3u8
 #EXTINF:-1 group-title="Entretenimiento y General",Zona Latina
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0su
+#EXTINF:-1 group-title="Entretenimiento y General",Zona Latina
+http://45.170.130.224:8000/play/a00x/index.m3u8
 #EXTINF:-1 group-title="Documentales",Animal Planet
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0po
+#EXTINF:-1 group-title="Documentales",Animal Planet
+http://190.128.214.97:64333/play/a01n/index.m3u8
 #EXTINF:-1 group-title="Documentales",Animal Planet HD
 #EXTVLCOPT:network-caching=1000
 http://181.78.8.199:8000/play/a06w/index.m3u8
 #EXTINF:-1 group-title="Documentales",Discovery Science
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0pb
+#EXTINF:-1 group-title="Documentales",Discovery Science
+http://45.171.64.30:6060/play/a007/index.m3u8
 #EXTINF:-1 group-title="Documentales",Discovery Turbo
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0p8
+#EXTINF:-1 group-title="Documentales",Discovery Turbo
+http://38.134.250.110:8000/play/a01y/index.m3u8
 #EXTINF:-1 group-title="Documentales",Discovery World
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0n8
+#EXTINF:-1 group-title="Documentales",Discovery World
+http://168.196.127.137:6001/play/a097/index.m3u8
 #EXTINF:-1 tvg-id="ElGourmet.ar@South" tvg-logo="https://i.imgur.com/ByMyRI9.png" group-title="Documentales",El Gourmet
 https://iptv.bitred.cl/ELGOURMET_HD/index.m3u8
 #EXTINF:-1 group-title="Documentales",History Channel
@@ -288,22 +398,40 @@ http://38.65.175.84:8000/play/a0ch/index.m3u8
 #EXTINF:-1 group-title="Documentales",Nat Geo
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0pt
+#EXTINF:-1 group-title="Documentales",Nat Geo
+http://138.121.15.230:9002/NAT-GEO/index.m3u8
 #EXTINF:-1 group-title="Documentales",TLC
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0t3
+#EXTINF:-1 group-title="Documentales",TLC
+http://38.134.250.110:8000/play/a00n/index.m3u8
 #EXTINF:-1 group-title="Infantil",Baby First
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0sw
+#EXTINF:-1 group-title="Infantil",Baby First
+http://168.196.127.137:6001/play/a06j/index.m3u8
 #EXTINF:-1 group-title="Infantil",Baby TV
 #EXTVLCOPT:network-caching=1000
 http://181.78.8.199:8000/play/a08d/index.m3u8
+#EXTINF:-1 group-title="Infantil",Baby TV
+http://38.44.109.41:8003/play/a0eh
 #EXTINF:-1 tvg-id="CartoonNetworkLatinAmerica.us@SouthAtlantic" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Cartoon_Network_2010_logo.svg/960px-Cartoon_Network_2010_logo.svg.png" group-title="Infantil",Cartoon Network
 http://158.172.217.18:8000/play/a03a/index.m3u8
+#EXTINF:-1 group-title="Infantil",Cartoon Network
+http://bantel-cdn1.iptvperu.tv:1935/btnscrtn/cartoonnetwork.stream/playlist.m3u8
 #EXTINF:-1 tvg-id="DisneyChannelLatinAmerica.ar@PanregionalHD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/f/ff/2024_Disney_Channel_text_logo.svg" group-title="Infantil",Disney Channel
 http://45.134.141.161:2200/ARG/Disney_Channel/index.m3u8
+#EXTINF:-1 group-title="Infantil",Disney Channel
+http://181.78.8.199:8000/play/a0dn/index.m3u8
+#EXTINF:-1 group-title="Infantil",Disney Channel
+http://45.166.93.156:9999/play/a0f3/index.m3u8
+#EXTINF:-1 group-title="Infantil",Disney Channel
+http://138.121.15.230:9002/DISNEY-CHANNEL/index.m3u8
 #EXTINF:-1 group-title="Infantil",Disney Jr.
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0p7
+#EXTINF:-1 group-title="Infantil",Disney Jr.
+http://190.14.10.19:16000/play/a02d/index.m3u8
 #EXTINF:-1 tvg-id="DisneyJrLatinAmerica.ar@South" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/e/e3/2024_Disney_Jr._Logo.svg" group-title="Infantil",Disney Jr. Sur
 http://45.185.163.75:8000/play/a016/index.m3u8
 #EXTINF:-1 tvg-id="DisneyJrLatinAmerica.ar@SouthHD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/e/e3/2024_Disney_Jr._Logo.svg" group-title="Infantil",Disney Jr. Sur HD
@@ -313,15 +441,27 @@ http://45.134.141.161:2200/ARG/Disney_Junior/index.m3u8
 http://181.78.79.131:8000/play/a0qm
 #EXTINF:-1 tvg-id="Pakapaka.ar@SD" tvg-logo="https://i.imgur.com/GJbRWwH.png" group-title="Infantil",Pakapaka
 http://190.128.214.97:64333/play/a02r/index.m3u8
+#EXTINF:-1 group-title="Infantil",Pakapaka
+http://138.59.227.20:8000/play/a05t/index.m3u8
 #EXTINF:-1 group-title="Música",Bandamax
 #EXTVLCOPT:network-caching=1000
 http://181.78.8.199:8000/play/a0g9/index.m3u8
+#EXTINF:-1 group-title="Música",Bandamax
+http://181.78.106.127:5000/play/ca064/index.m3u8
 #EXTINF:-1 group-title="Religión",Bethel TV
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0pn
+#EXTINF:-1 group-title="Religión",Bethel TV
+https://alfa.betheltv.tv/srt/3_abr/playlist.m3u8
 #EXTINF:-1 group-title="Religión",Enlace
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0pj
+#EXTINF:-1 group-title="Religión",Enlace
+http://138.121.15.230:9002/ENLACE/index.m3u8
+#EXTINF:-1 group-title="Religión",EWTN
+https://cdn3.wowza.com/1/SmVrQmZCUXZhVDgz/b3J3MFJv/hls/q6xkg9py/480/chunklist.m3u8
+#EXTINF:-1 group-title="Religión",EWTN
+https://cdn3.wowza.com/1/SmVrQmZCUXZhVDgz/b3J3MFJv/hls/live/playlist.m3u8
 #EXTINF:-1 group-title="Chile",Canal 13
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0n4
@@ -347,9 +487,13 @@ https://rudo.video/live/tvn
 #EXTINF:-1 group-title="Chile",ViaX
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0t4
+#EXTINF:-1 group-title="Chile",ViaX
+http://45.170.130.224:8000/play/a025/index.m3u8
 #EXTINF:-1 group-title="Chile",Zoom
 #EXTVLCOPT:network-caching=1000
 http://181.78.79.131:8000/play/a0sg
+#EXTINF:-1 group-title="Chile",Zoom
+http://138.121.15.230:9002/ZOOM/index.m3u8
 #EXTINF:-1 group-title="Colombia",Cable Noticias
 #EXTVLCOPT:network-caching=1000
 http://181.78.8.199:8000/play/a0g3/index.m3u8
@@ -380,4 +524,3 @@ https://congresodirecto.akamaized.net/hls/live/2037973/canalparlamento/master.m3
 #EXTINF:-1 group-title="Europa",DW Español
 #EXTVLCOPT:network-caching=1000
 https://dwamdstream104.akamaized.net/hls/live/2015530/dwstream104/index.m3u8
-

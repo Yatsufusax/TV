@@ -1,5 +1,16 @@
 package com.mistv.canales
 
+/** Una señal (link) de un canal: puede ser la principal o un respaldo. */
+data class Source(
+    val url: String,
+    val userAgent: String?,
+    val referer: String?
+)
+
+/**
+ * Un canal. [url] / [userAgent] / [referer] son la señal principal; [backups] son los
+ * links de respaldo del MISMO canal (se prueban en orden si la principal no anda).
+ */
 data class Channel(
     val number: Int,
     val name: String,
@@ -8,8 +19,14 @@ data class Channel(
     val userAgent: String?,
     val referer: String?,
     val logo: String? = null,
-    val tvgId: String? = null
-)
+    val tvgId: String? = null,
+    val backups: List<Source> = emptyList()
+) {
+    /** Todas las señales en orden: principal primero, después los respaldos. */
+    val sources: List<Source> by lazy(LazyThreadSafetyMode.NONE) {
+        listOf(Source(url, userAgent, referer)) + backups
+    }
+}
 
 object M3uParser {
     private val attrRegex = Regex("([\\w\\-]+)=\"([^\"]*)\"")
@@ -76,24 +93,49 @@ object M3uParser {
             }
         }
 
+        // Respaldos: las entradas con el mismo nombre (y grupo) son UN solo canal con varios
+        // links. El primero es el principal y los demás quedan como respaldo, en orden.
+        // Los links repetidos se descartan.
+        val merged = LinkedHashMap<String, MutableList<Pair<Raw, String>>>()
+        for (entry in raws) {
+            val key = normalize(entry.first.name) + "|" + normalize(entry.first.group)
+            val bucket = merged.getOrPut(key) { ArrayList() }
+            if (bucket.none { it.second == entry.second }) bucket.add(entry)
+        }
+        val groups = merged.values.toList()
+
         // Numeración: se respeta tvg-chno si existe y no está repetido;
         // el resto recibe el primer número libre en el orden de la lista.
         val used = HashSet<Int>()
-        val claimed = arrayOfNulls<Int>(raws.size)
-        raws.forEachIndexed { i, (r, _) ->
-            val n = r.chno
+        val claimed = arrayOfNulls<Int>(groups.size)
+        groups.forEachIndexed { i, g ->
+            val n = g.firstNotNullOfOrNull { it.first.chno }
             if (n != null && n > 0 && used.add(n)) claimed[i] = n
         }
         var next = 1
-        val result = ArrayList<Channel>(raws.size)
-        raws.forEachIndexed { i, (r, url) ->
+        val result = ArrayList<Channel>(groups.size)
+        groups.forEachIndexed { i, g ->
             val num = claimed[i] ?: run {
                 while (next in used) next++
                 used.add(next)
                 next
             }
-            result.add(Channel(num, r.name, r.group, url, r.ua, r.referer, r.logo, r.tvgId))
+            val (r, url) = g[0]
+            val backups = g.drop(1).map { (br, burl) -> Source(burl, br.ua, br.referer) }
+            result.add(
+                Channel(
+                    num, r.name, r.group, url, r.ua, r.referer,
+                    g.firstNotNullOfOrNull { it.first.logo },
+                    g.firstNotNullOfOrNull { it.first.tvgId },
+                    backups
+                )
+            )
         }
         return result.sortedBy { it.number }
     }
+
+    private fun normalize(s: String): String =
+        java.text.Normalizer.normalize(s.trim().lowercase(), java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{Mn}+"), "")
+            .replace(Regex("\\s+"), " ")
 }

@@ -32,6 +32,7 @@ import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.PlayerView
@@ -88,11 +89,21 @@ class MainActivity : Activity() {
     private var modes: List<Boolean> = listOf(true)
     private var attempt = 0
 
+    // Señales de respaldo: srcIndex = señal actual del canal (0 = principal).
+    // workingSrc recuerda (mientras la app está abierta) cuál señal anduvo para cada canal.
+    private var srcIndex = 0
+    private val workingSrc = HashMap<String, Int>()
+
     private val hideOsd = Runnable { osd.visibility = View.GONE }
     private val hideMessageRunnable = Runnable { messageView.visibility = View.GONE }
     private val commitRunnable = Runnable { commitDigits() }
     private val retryPlayback = Runnable {
         attempt = 0
+        srcIndex = 0
+        channels.getOrNull(index)?.let {
+            workingSrc.remove(it.name)
+            modes = modesFor(it.sources[0].url)
+        }
         startPlayback()
     }
     private val retryUpdate = Runnable { updateNow(false) }
@@ -184,6 +195,7 @@ class MainActivity : Activity() {
                 if (playbackState == Player.STATE_READY) {
                     ui.removeCallbacks(retryPlayback)
                     hideMessage()
+                    channels.getOrNull(index)?.let { workingSrc[it.name] = srcIndex }
                     checkVideoTrack()
                     applySavedAudioExo()
                 }
@@ -231,6 +243,14 @@ class MainActivity : Activity() {
     // ───────────────────────── Reproducción ─────────────────────────
 
     private fun looksHls(url: String) = url.contains(".m3u8", ignoreCase = true)
+    private fun looksDash(url: String) = url.contains(".mpd", ignoreCase = true)
+
+    private fun modesFor(url: String): List<Boolean> =
+        if (looksHls(url) || looksDash(url)) listOf(true, false) else listOf(false, true)
+
+    /** Señal que se está reproduciendo ahora del canal actual. */
+    private fun currentSource(ch: Channel): Source =
+        ch.sources[srcIndex.coerceIn(0, ch.sources.size - 1)]
 
     private fun tune(i: Int) {
         if (channels.isEmpty()) return
@@ -242,7 +262,9 @@ class MainActivity : Activity() {
         ui.removeCallbacks(retryPlayback)
         hideMessage()
         attempt = 0
-        modes = if (looksHls(ch.url)) listOf(true, false) else listOf(false, true)
+        // Arranca con la señal que ya anduvo antes; si no hay, con la principal.
+        srcIndex = (workingSrc[ch.name] ?: 0).coerceIn(0, ch.sources.size - 1)
+        modes = modesFor(ch.sources[srcIndex].url)
         startPlayback()
         showOsd(ch)
         refreshShown()
@@ -251,15 +273,16 @@ class MainActivity : Activity() {
     private fun startPlayback() {
         val ch = channels.getOrNull(index) ?: return
         audioApplied = false
-        if (repo.needsVlc(ch.url)) {
-            startVlc(ch)
+        val src = currentSource(ch)
+        if (repo.needsVlc(src.url)) {
+            startVlc(ch, src)
             return
         }
         stopVlc()
-        val ua = ch.userAgent
+        val ua = src.userAgent
             ?: "Mozilla/5.0 (Linux; Android 11; Google TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
         val headers = HashMap<String, String>()
-        ch.referer?.let { headers["Referer"] = it }
+        src.referer?.let { headers["Referer"] = it }
 
         val dsf = DefaultHttpDataSource.Factory()
             .setUserAgent(ua)
@@ -268,18 +291,20 @@ class MainActivity : Activity() {
             .setReadTimeoutMs(15000)
             .setDefaultRequestProperties(headers)
 
-        val source = if (modes[attempt]) {
+        val source = if (looksDash(src.url)) {
+            DashMediaSource.Factory(dsf).createMediaSource(MediaItem.fromUri(src.url))
+        } else if (modes[attempt.coerceIn(0, modes.size - 1)]) {
             HlsMediaSource.Factory(dsf)
                 .setAllowChunklessPreparation(true)
                 .createMediaSource(
                     MediaItem.Builder()
-                        .setUri(ch.url)
+                        .setUri(src.url)
                         .setMimeType(MimeTypes.APPLICATION_M3U8)
                         .build()
                 )
         } else {
             ProgressiveMediaSource.Factory(dsf)
-                .createMediaSource(MediaItem.fromUri(ch.url))
+                .createMediaSource(MediaItem.fromUri(src.url))
         }
         player.setMediaSource(source)
         player.prepare()
@@ -298,8 +323,9 @@ class MainActivity : Activity() {
 
         if (videoBroken || audioBroken) {
             val ch = channels.getOrNull(index) ?: return
-            repo.setNeedsVlc(ch.url, true)
-            startVlc(ch)
+            val src = currentSource(ch)
+            repo.setNeedsVlc(src.url, true)
+            startVlc(ch, src)
         } else if (audio.isNotEmpty() && video.isEmpty()) {
             showMessage("Este canal no trae video (solo audio)", 8000)
         }
@@ -307,7 +333,7 @@ class MainActivity : Activity() {
 
     // ───────────────────────── Motor VLC (respaldo) ─────────────────────────
 
-    private fun startVlc(ch: Channel) {
+    private fun startVlc(ch: Channel, src: Source) {
         audioApplied = false
         try {
             player.stop()
@@ -321,7 +347,11 @@ class MainActivity : Activity() {
                             ui.postDelayed({ applySavedAudioVlc() }, 1500)
                         }
                         VlcPlayer.Event.EncounteredError -> runOnUiThread {
-                            showMessage("Sin señal: ${channels.getOrNull(index)?.name ?: ""}", 0)
+                            if (!tryNextSource()) {
+                                showMessage("Sin señal: ${channels.getOrNull(index)?.name ?: ""}", 0)
+                                ui.removeCallbacks(retryPlayback)
+                                ui.postDelayed(retryPlayback, 10_000)
+                            }
                         }
                     }
                 }
@@ -334,12 +364,12 @@ class MainActivity : Activity() {
             playerView.visibility = View.INVISIBLE
             usingVlc = true
 
-            val ua = ch.userAgent
+            val ua = src.userAgent
                 ?: "Mozilla/5.0 (Linux; Android 11; Google TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"
-            val media = Media(lib, Uri.parse(ch.url))
+            val media = Media(lib, Uri.parse(src.url))
             media.addOption(":http-user-agent=$ua")
             media.addOption(":audio-language=spa,es") // preferir audio en español
-            ch.referer?.let { media.addOption(":http-referrer=$it") }
+            src.referer?.let { media.addOption(":http-referrer=$it") }
             vp.media = media
             media.release()
             vp.play()
@@ -361,12 +391,25 @@ class MainActivity : Activity() {
         playerView.visibility = View.VISIBLE
     }
 
+    /** Pasa a la siguiente señal de respaldo del canal actual. false si ya no quedan. */
+    private fun tryNextSource(): Boolean {
+        val ch = channels.getOrNull(index) ?: return false
+        if (srcIndex >= ch.sources.size - 1) return false
+        srcIndex++
+        attempt = 0
+        modes = modesFor(ch.sources[srcIndex].url)
+        showMessage("Señal caída, probando respaldo ${srcIndex + 1}/${ch.sources.size}…", 4000)
+        startPlayback()
+        return true
+    }
+
     private fun onPlaybackError() {
         if (attempt < modes.size - 1) {
             attempt++
             startPlayback()
             return
         }
+        if (tryNextSource()) return
         val ch = channels.getOrNull(index) ?: return
         showMessage("Sin señal: ${ch.name}\nProbá con otro canal", 0)
         ui.removeCallbacks(retryPlayback)
@@ -430,7 +473,7 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun isDead(ch: Channel) = ChannelChecker.isDead(ch.url)
+    private fun isDead(ch: Channel) = ChannelChecker.isDead(ch)
 
     /** Recalcula qué canales se ven en la lista (si está activado, oculta los caídos). */
     private fun refreshShown() {
@@ -646,7 +689,7 @@ class MainActivity : Activity() {
                         repo.setAudioPref(ch.name, which)
                         toast("Audio: ${tracks[which].name}")
                     } else {
-                        repo.setNeedsVlc(ch.url, false)
+                        repo.setNeedsVlc(currentSource(ch).url, false)
                         startPlayback()
                     }
                 }
@@ -669,8 +712,8 @@ class MainActivity : Activity() {
                         repo.setAudioPref(ch.name, which)
                         selectAudioExo(which)
                     } else {
-                        repo.setNeedsVlc(ch.url, true)
-                        startVlc(ch)
+                        repo.setNeedsVlc(currentSource(ch).url, true)
+                        startVlc(ch, currentSource(ch))
                     }
                 }
                 .show()
@@ -682,8 +725,8 @@ class MainActivity : Activity() {
         if (!g.isSupported) {
             // El equipo no puede decodificar esa pista: pasamos este canal a VLC.
             val ch = channels.getOrNull(index) ?: return
-            repo.setNeedsVlc(ch.url, true)
-            startVlc(ch)
+            repo.setNeedsVlc(currentSource(ch).url, true)
+            startVlc(ch, currentSource(ch))
             return
         }
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
