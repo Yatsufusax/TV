@@ -110,6 +110,24 @@ class MainActivity : Activity() {
         startPlayback()
     }
     private val retryUpdate = Runnable { updateNow(false) }
+
+    // ── Vigilante anti-congelamiento: si la imagen se queda quieta, reconecta solo
+    private var wdLastPos = -1L
+    private var wdSamePos = 0
+    private var wdLastFrames = -1L
+    private var wdSameFrames = 0
+    private var wdBuffering = 0
+    private var wdGood = 0
+    private var stallCount = 0
+    private val watchdog = object : Runnable {
+        override fun run() {
+            try {
+                checkStall()
+            } catch (_: Throwable) {
+            }
+            ui.postDelayed(this, 4000)
+        }
+    }
     private val epgUpdate = object : Runnable {
         override fun run() {
             updateEpg(false)
@@ -198,6 +216,11 @@ class MainActivity : Activity() {
         player.playWhenReady = true
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
+                // Se quedó atrás de la transmisión en vivo: basta con volver a engancharse.
+                if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
+                    startPlayback()
+                    return
+                }
                 onPlaybackError()
             }
 
@@ -221,6 +244,7 @@ class MainActivity : Activity() {
         index = channels.indexOfFirst { it.name == last }.let { if (it >= 0) it else 0 }
         tune(index)
 
+        ui.postDelayed(watchdog, 8000)
         ui.postDelayed(autoUpdate, 1500)
         ui.postDelayed(epgUpdate, 3000)
         ui.postDelayed({ AppUpdater.check(this, false) }, 5000)
@@ -284,6 +308,7 @@ class MainActivity : Activity() {
         val ch = channels.getOrNull(index) ?: return
         audioApplied = false
         val src = currentSource(ch)
+        wdReset()
         if (repo.needsVlc(src.url)) {
             startVlc(ch, src)
             return
@@ -399,6 +424,80 @@ class MainActivity : Activity() {
         usingVlc = false
         vlcLayout.visibility = View.GONE
         playerView.visibility = View.VISIBLE
+    }
+
+    private fun wdReset() {
+        wdLastPos = -1L
+        wdSamePos = 0
+        wdLastFrames = -1L
+        wdSameFrames = 0
+        wdBuffering = 0
+    }
+
+    /** Se llama cada 4 s: detecta imagen congelada o carga eterna y reconecta. */
+    private fun checkStall() {
+        if (stopped || channels.isEmpty()) return
+        var stalled = false
+        if (usingVlc) {
+            val vp = vlcPlayer ?: return
+            if (!vp.isPlaying) {
+                wdReset()
+                return
+            }
+            val t = vp.time
+            if (t == wdLastPos) wdSamePos++ else {
+                wdSamePos = 0
+                wdLastPos = t
+            }
+            stalled = wdSamePos >= 3
+        } else {
+            val st = player.playbackState
+            if (st == Player.STATE_IDLE || st == Player.STATE_ENDED || !player.playWhenReady) {
+                wdReset()
+                return
+            }
+            if (st == Player.STATE_BUFFERING) {
+                wdBuffering++
+                stalled = wdBuffering >= 3 // ~12 s cargando sin avanzar
+            } else {
+                wdBuffering = 0
+                val pos = player.currentPosition
+                if (pos == wdLastPos) wdSamePos++ else {
+                    wdSamePos = 0
+                    wdLastPos = pos
+                }
+                if (wdSamePos >= 2) stalled = true // el tiempo no avanza
+                // Video congelado aunque el audio siga: no se dibujan cuadros nuevos
+                val counters = player.videoDecoderCounters
+                if (counters != null && player.videoFormat != null) {
+                    counters.ensureUpdated()
+                    val frames = counters.renderedOutputBufferCount.toLong()
+                    if (frames == wdLastFrames) wdSameFrames++ else {
+                        wdSameFrames = 0
+                        wdLastFrames = frames
+                    }
+                    if (wdSameFrames >= 3) stalled = true
+                }
+            }
+        }
+        if (stalled) {
+            reconnect()
+        } else if (wdSamePos == 0 && wdSameFrames == 0 && wdBuffering == 0) {
+            if (++wdGood >= 8) stallCount = 0 // ~30 s estable: se olvidan los tropiezos
+        }
+    }
+
+    /** Reintenta el mismo link; si se congela varias veces seguidas pasa al respaldo. */
+    private fun reconnect() {
+        wdReset()
+        wdGood = 0
+        stallCount++
+        if (stallCount > 2) {
+            stallCount = 0
+            if (tryNextSource()) return
+        }
+        showMessage("Reconectando…", 2500)
+        startPlayback()
     }
 
     /** Pasa a la siguiente señal de respaldo del canal actual. false si ya no quedan. */

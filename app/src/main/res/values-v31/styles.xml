@@ -1,0 +1,10 @@
+<resources>
+    <!-- Android 12+: la pantalla de inicio del sistema queda del mismo color que la app y sin ícono,
+         así al abrir se ve directo la bienvenida de YuzuPlay. -->
+    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">#0E1116</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowSplashScreenBackground">#0E1116</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_empty</item>
+    </style>
+</resources>

@@ -81,6 +81,12 @@ http://link-de-respaldo/index.m3u8
 * Cada link puede llevar su propio `#EXTVLCOPT` (referer / user-agent).
 * Se admiten links `.m3u8` (HLS), `.mpd` (DASH) y TS directo.
 
+## Si un canal se congela
+
+La app vigila la transmisión cada 4 segundos. Si la imagen se queda quieta (aunque suene el
+audio) o se queda cargando más de ~12 segundos, **reconecta sola** el mismo link. Si se
+congela 3 veces seguidas, pasa al siguiente link de respaldo del canal.
+
 ## Notas técnicas
 
 * Reproductor: Media3 / ExoPlayer. Admite HLS (.m3u8) y transmisiones directas TS.
