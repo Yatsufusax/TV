@@ -1,8 +1,7 @@
-Actualización V20
+ACTUALIZACION V21
 
 - Cambio de canal más rápido
 - Tecla INFO: muestra resolución, audio, señal y programa actual
 - Ajuste de pantalla por canal (ajustar / zoom / estirar) desde el menú
+- Cartoon Network y otros canales con VLC ya no se quedan congelados: reconectan solos
 - La app ahora muestra las novedades antes de actualizar
- 
-GRACIAS POR ACTUALIZAR Y USAR A YUZU 

@@ -120,6 +120,7 @@ class MainActivity : Activity() {
     private var wdLastFrames = -1L
     private var wdSameFrames = 0
     private var wdBuffering = 0
+    private var vlcUserPaused = false
     private var wdGood = 0
     private var stallCount = 0
     private val watchdog = object : Runnable {
@@ -466,10 +467,11 @@ class MainActivity : Activity() {
 
     private fun startVlc(ch: Channel, src: Source) {
         audioApplied = false
+        vlcUserPaused = false
         try {
             player.stop()
             ui.removeCallbacks(retryPlayback)
-            val lib = libVlc ?: LibVLC(this, arrayListOf("--network-caching=${Config.VLC_CACHE_MS}", "--clock-jitter=0", "--clock-synchro=0")).also { libVlc = it }
+            val lib = libVlc ?: LibVLC(this, arrayListOf("--network-caching=${Config.VLC_CACHE_MS}")).also { libVlc = it }
             val vp = vlcPlayer ?: VlcPlayer(lib).also { p ->
                 p.setEventListener { ev ->
                     when (ev.type) {
@@ -538,9 +540,17 @@ class MainActivity : Activity() {
         if (usingVlc) {
             val vp = vlcPlayer ?: return
             if (!vp.isPlaying) {
-                wdReset()
+                // Pausado por el usuario: no tocar. Si no, VLC quedó trabado cargando: reconectar.
+                if (vlcUserPaused) {
+                    wdReset()
+                    return
+                }
+                wdSamePos = 0
+                wdBuffering++
+                if (wdBuffering >= 4) reconnect() // ~16 s sin reproducir
                 return
             }
+            wdBuffering = 0
             val t = vp.time
             if (t == wdLastPos) wdSamePos++ else {
                 wdSamePos = 0
@@ -808,7 +818,9 @@ class MainActivity : Activity() {
             KeyEvent.KEYCODE_LAST_CHANNEL -> if (prevIndex in channels.indices) tune(prevIndex)
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ->
                 if (usingVlc) {
-                    vlcPlayer?.let { if (it.isPlaying) it.pause() else it.play() }
+                    vlcPlayer?.let {
+                        if (it.isPlaying) { vlcUserPaused = true; it.pause() } else { vlcUserPaused = false; it.play() }
+                    }
                 } else {
                     player.playWhenReady = !player.playWhenReady
                 }
