@@ -32,9 +32,9 @@ class ChannelRepository(private val ctx: Context) {
 
     /** Dirección de la guía de programación (XMLTV, puede ser .xml o .xml.gz). */
     var epgUrl: String
-        get() = prefs.getString("epg", "") ?: ""
+        get() = prefs.getString("epg_urls", Config.DEFAULT_EPG_URLS) ?: Config.DEFAULT_EPG_URLS
         set(v) {
-            prefs.edit().putString("epg", v.trim()).apply()
+            prefs.edit().putString("epg_urls", v.trim()).apply()
         }
 
     /** Ocultar los canales que la prueba marcó como caídos. */

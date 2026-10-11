@@ -736,14 +736,17 @@ class MainActivity : Activity() {
     private fun askEpg() {
         val edit = EditText(this)
         edit.setText(repo.epgUrl)
-        edit.hint = "https://.../guia.xml.gz  (formato XMLTV)"
-        edit.setSingleLine(true)
+        edit.hint = "Una dirección por línea (formato XMLTV, .xml o .xml.gz)"
+        edit.setSingleLine(false)
+        edit.minLines = 5
+        edit.gravity = android.view.Gravity.TOP or android.view.Gravity.START
+        edit.textSize = 13f
         val box = LinearLayout(this)
         box.setPadding(48, 16, 48, 0)
         box.addView(edit, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         AlertDialog.Builder(this)
-            .setTitle("Dirección de la guía de programación")
+            .setTitle("Guías de programación (una por línea)")
             .setView(box)
             .setPositiveButton("Guardar y actualizar") { _, _ ->
                 repo.epgUrl = edit.text.toString()
@@ -754,15 +757,18 @@ class MainActivity : Activity() {
     }
 
     private fun updateEpg(manual: Boolean) {
-        val url = repo.epgUrl
-        if (url.isBlank()) {
+        val urls = Epg.parseUrls(repo.epgUrl)
+        if (urls.isEmpty()) {
             if (manual) toast("Falta la dirección de la guía (Menú → Guía de programación)")
             return
         }
-        if (manual) toast("Descargando guía…")
-        Epg.refresh(url) { _, msg ->
+        if (manual) toast("Descargando ${urls.size} guías…")
+        Epg.refresh(urls) { ok, msg ->
             runOnUiThread {
-                if (manual) toast(msg)
+                if (manual) {
+                    toast(if (ok) "$msg\nTus canales con guía: ${Epg.coverage(channels)} de ${channels.size}" else msg)
+                    channels.getOrNull(index)?.let { showOsd(it) }
+                }
                 refreshShown()
             }
         }

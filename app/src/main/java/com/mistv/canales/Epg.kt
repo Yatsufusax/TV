@@ -17,7 +17,7 @@ class Prog(val start: Long, val stop: Long, val title: String)
 /** Guía de programación (XMLTV): qué están dando ahora y qué sigue en cada canal. */
 object Epg {
     @Volatile private var progs: Map<String, List<Prog>> = emptyMap()
-    @Volatile private var alias: Map<String, String> = emptyMap()
+    @Volatile private var alias: Map<String, List<String>> = emptyMap()
     @Volatile private var busy = false
 
     fun norm(s: String): String {
@@ -25,33 +25,73 @@ object Epg {
         return t.lowercase().replace(Regex("[^a-z0-9]"), "")
     }
 
-    private val suffixes = listOf(
-        "latinamerica", "latinoamerica", "southatlantic", "panregional", "latam",
-        "fhd", "uhd", "hd", "sd", "4k",
-        "us", "ar", "cl", "co", "mx", "py", "br", "es", "pe", "uy"
-    )
+    // Sufijos que se ignoran al comparar nombres, con el largo mínimo que debe quedar del nombre.
+    private val suffixes: List<Pair<String, Int>> =
+        listOf(
+            "latinamerica" to 3, "latinoamerica" to 3, "southatlantic" to 3, "panregional" to 3,
+            "enespanol" to 3, "latam" to 3,
+            "fhd" to 2, "uhd" to 2, "hd" to 2, "sd" to 2, "4k" to 2
+        ) + listOf("us", "ar", "cl", "co", "mx", "py", "br", "es", "pe", "uy").map { it to 4 }
 
-    /** Variantes de un nombre o código: sin tildes, sin HD/SD ni sufijo de país o región. */
-    fun variants(raw: String): List<String> {
-        val out = LinkedHashSet<String>()
-        for (base in listOf(raw, raw.replace(Regex("\\([^)]*\\)"), ""))) {
-            var cur = norm(base)
-            if (cur.isEmpty()) continue
-            out.add(cur)
-            var changed = true
-            while (changed) {
-                changed = false
-                for (sfx in suffixes) {
-                    if (cur.endsWith(sfx) && cur.length - sfx.length >= 4) {
-                        cur = cur.removeSuffix(sfx)
-                        out.add(cur)
-                        changed = true
-                        break
-                    }
+    private fun stripSuffixes(start: String, out: MutableCollection<String>) {
+        var cur = start
+        var changed = true
+        while (changed) {
+            changed = false
+            for ((sfx, minLen) in suffixes) {
+                if (cur.endsWith(sfx) && cur.length - sfx.length >= minLen) {
+                    cur = cur.removeSuffix(sfx)
+                    out.add(cur)
+                    changed = true
+                    break
                 }
             }
         }
+    }
+
+    /** Variantes de un nombre o código: sin tildes, sin "Canal", sin HD/SD ni país o región, Jr = Junior. */
+    fun variants(raw: String): List<String> {
+        val out = LinkedHashSet<String>()
+        for (base in listOf(raw, raw.replace(Regex("\\([^)]*\\)"), ""))) {
+            val cur = norm(base)
+            if (cur.isEmpty()) continue
+            out.add(cur)
+            stripSuffixes(cur, out)
+        }
+        // Algunas guías anteponen "Canal " a casi todos los nombres: probar también sin esa palabra.
+        for (v in out.toList()) {
+            if (v.startsWith("canal") && v.length - 5 >= 3) {
+                val w = v.substring(5)
+                out.add(w)
+                stripSuffixes(w, out)
+            }
+        }
+        // Siglas entre paréntesis, por ejemplo "Chilevisión (CHV)" → "chv".
+        for (m in Regex("\\(([A-Z]{3,5})\\)").findAll(raw)) {
+            val sg = m.groupValues[1]
+            if (sg != "FHD" && sg != "UHD") out.add(sg.lowercase())
+        }
+        for (v in out.toList()) {
+            if (v.contains("jr")) out.add(v.replace("jr", "junior"))
+        }
         return out.toList()
+    }
+
+    /** País que se prefiere cuando el mismo canal está en varias guías (según su código o su grupo). */
+    private fun preferredCode(ch: Channel): String? {
+        val tid = ch.tvgId
+        if (tid != null) {
+            val code = tid.substringBefore('@').substringAfterLast('.')
+            if (code.length == 2 && code != "us") return code.lowercase()
+        }
+        val g = ch.group.lowercase()
+        return when {
+            g.contains("chile") -> "cl"
+            g.contains("colombia") -> "co"
+            g.contains("argentina") -> "ar"
+            g.contains("méxico") || g.contains("mexico") -> "mx"
+            else -> null
+        }
     }
 
     /** Devuelve (id de la guía encontrado, claves que se probaron). */
@@ -68,8 +108,14 @@ object Epg {
         keys.addAll(variants(ch.name))
         for (k in keys) {
             if (k.isEmpty()) continue
-            val id = if (p.containsKey(k)) k else a[k]
-            if (id != null && !p[id].isNullOrEmpty()) return Pair(id, keys)
+            val cands = if (p.containsKey(k)) listOf(k) else (a[k] ?: emptyList())
+            val valid = cands.filter { !p[it].isNullOrEmpty() }
+            if (valid.isNotEmpty()) {
+                val want = preferredCode(ch)
+                val pick = valid.firstOrNull { want != null && it.substringAfterLast('.').lowercase() == want }
+                    ?: valid.first()
+                return Pair(pick, keys)
+            }
         }
         return Pair(null, keys)
     }
@@ -105,16 +151,45 @@ object Epg {
         return Pair(cur, next)
     }
 
-    fun refresh(url: String, done: (Boolean, String) -> Unit) {
+    /** Separa varias direcciones escritas con saltos de línea, espacios o comas. */
+    fun parseUrls(text: String): List<String> =
+        text.split(Regex("[\\s,;]+")).map { it.trim() }.filter { it.startsWith("http", ignoreCase = true) }.distinct()
+
+    /** Cuántos canales de la lista tienen programación en la guía cargada. */
+    fun coverage(list: List<Channel>): Int = list.count { find(it) != null }
+
+    /** Descarga varias guías y las junta en una sola. Una que falle no impide cargar las demás. */
+    fun refresh(urls: List<String>, done: (Boolean, String) -> Unit) {
         if (busy) return
         busy = true
         Thread {
             try {
-                val result = download(url)
-                progs = result.first
-                alias = result.second
-                done(true, "Guía actualizada: ${result.first.size} canales con programación")
-            } catch (ex: Exception) {
+                val allProgs = HashMap<String, List<Prog>>()
+                val allAlias = HashMap<String, MutableList<String>>()
+                var ok = 0
+                val errors = ArrayList<String>()
+                for (u in urls) {
+                    try {
+                        val r = download(u)
+                        for ((k, v) in r.first) if (!allProgs.containsKey(k)) allProgs[k] = v
+                        for ((k, v) in r.second) {
+                            val l = allAlias.getOrPut(k) { ArrayList() }
+                            for (x in v) if (!l.contains(x)) l.add(x)
+                        }
+                        ok++
+                    } catch (ex: Exception) {
+                        errors.add("${u.substringAfterLast('/')}: ${ex.message}")
+                    }
+                }
+                if (ok == 0) {
+                    done(false, "No se pudo cargar la guía: ${errors.firstOrNull() ?: "sin direcciones"}")
+                } else {
+                    progs = allProgs
+                    alias = allAlias
+                    val extra = if (errors.isEmpty()) "" else "  (fallaron ${errors.size}: ${errors.joinToString("; ")})"
+                    done(true, "Guías cargadas: $ok de ${urls.size}  ·  ${allProgs.size} canales en la guía$extra")
+                }
+            } catch (ex: Throwable) {
                 done(false, "No se pudo cargar la guía: ${ex.message}")
             } finally {
                 busy = false
@@ -122,7 +197,7 @@ object Epg {
         }.start()
     }
 
-    private fun download(url: String): Pair<Map<String, List<Prog>>, Map<String, String>> {
+    private fun download(url: String): Pair<Map<String, List<Prog>>, Map<String, List<String>>> {
         val conn = URL(url).openConnection() as HttpURLConnection
         conn.connectTimeout = 15000
         conn.readTimeout = 60000
@@ -141,7 +216,7 @@ object Epg {
         }
     }
 
-    private fun parse(input: InputStream): Pair<Map<String, List<Prog>>, Map<String, String>> {
+    private fun parse(input: InputStream): Pair<Map<String, List<Prog>>, Map<String, List<String>>> {
         val parser = Xml.newPullParser()
         parser.setInput(input, null)
         val now = System.currentTimeMillis()
@@ -162,7 +237,11 @@ object Epg {
         }
 
         val progs = HashMap<String, ArrayList<Prog>>()
-        val alias = HashMap<String, String>()
+        val alias = HashMap<String, ArrayList<String>>()
+        fun addAlias(k: String, id: String) {
+            val l = alias.getOrPut(k) { ArrayList() }
+            if (!l.contains(id)) l.add(id)
+        }
         var chId: String? = null
         var pChan: String? = null
         var pStart = 0L
@@ -176,12 +255,12 @@ object Epg {
                     "channel" -> {
                         chId = parser.getAttributeValue(null, "id")
                         val id = chId
-                        if (id != null) for (v in variants(id)) if (!alias.containsKey(v)) alias[v] = id
+                        if (id != null) for (v in variants(id)) addAlias(v, id)
                     }
                     "display-name" -> {
                         val id = chId
                         if (id != null) {
-                            for (v in variants(parser.nextText())) if (!alias.containsKey(v)) alias[v] = id
+                            for (v in variants(parser.nextText())) addAlias(v, id)
                         }
                     }
                     "programme" -> {
