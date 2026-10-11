@@ -23,6 +23,13 @@ class ChannelRepository(private val ctx: Context) {
         prefs.edit().putInt("aud_$channel", value).apply()
     }
 
+    /** Ajuste de pantalla por canal: 0 = ajustar, 1 = zoom (recorta), 2 = estirar. */
+    fun getAspect(channel: String): Int = prefs.getInt("asp_$channel", 0)
+
+    fun setAspect(channel: String, value: Int) {
+        prefs.edit().putInt("asp_$channel", value).apply()
+    }
+
     /** Canales que se reproducen siempre con VLC (el equipo no puede con su video o audio). */
     fun needsVlc(url: String): Boolean = prefs.getBoolean("vlc_${url.hashCode()}", false)
 

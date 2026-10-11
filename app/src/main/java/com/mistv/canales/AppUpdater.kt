@@ -36,9 +36,12 @@ object AppUpdater {
             try {
                 val remote = fetchText(Config.UPDATE_BASE_URL + "version.txt").trim().toLong()
                 val local = currentVersion(a)
+                val news = if (remote > local) {
+                    try { fetchText(Config.UPDATE_BASE_URL + "novedades.txt").trim() } catch (_: Exception) { "" }
+                } else ""
                 a.runOnUiThread {
                     if (remote > local) {
-                        if (manual || remote != declined) ask(a, remote, local)
+                        if (manual || remote != declined) ask(a, remote, local, news)
                     } else if (manual) {
                         toast(a, "Ya tenés la última versión (v$local)")
                     }
@@ -51,11 +54,15 @@ object AppUpdater {
         }.start()
     }
 
-    private fun ask(a: Activity, remote: Long, local: Long) {
+    private fun ask(a: Activity, remote: Long, local: Long, news: String) {
         if (a.isFinishing) return
         AlertDialog.Builder(a)
             .setTitle("Actualización disponible")
-            .setMessage("Hay una versión nueva (v$remote). Tenés la v$local.\n\n¿Descargar e instalar?")
+            .setMessage(
+                "Hay una versión nueva (v$remote). Tenés la v$local." +
+                    (if (news.isNotBlank()) "\n\nNovedades:\n${news.take(1200)}" else "") +
+                    "\n\n¿Descargar e instalar?"
+            )
             .setPositiveButton("Actualizar") { _, _ -> download(a) }
             .setNegativeButton("Ahora no") { _, _ -> declined = remote }
             .show()

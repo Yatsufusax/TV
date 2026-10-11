@@ -24,12 +24,23 @@ android {
     }
 
     // Misma firma en todas las compilaciones: permite actualizar la app instalada sin desinstalarla.
+    // La clave ya no está en el repositorio: GitHub la entrega desde "Secrets" como variables de entorno.
     signingConfigs {
         create("shared") {
-            storeFile = file("tvcanales.jks")
-            storePassword = "tvcanales"
-            keyAlias = "tvcanales"
-            keyPassword = "tvcanales"
+            val ks = System.getenv("KEYSTORE_FILE")
+            val sp = System.getenv("KEYSTORE_PASSWORD")
+            val al = System.getenv("KEY_ALIAS")
+            val kp = System.getenv("KEY_PASSWORD")
+            if (ks.isNullOrBlank() || sp.isNullOrBlank() || al.isNullOrBlank() || kp.isNullOrBlank()) {
+                throw GradleException(
+                    "Falta la clave de firma. Cargá los 4 secrets en GitHub: " +
+                        "KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD."
+                )
+            }
+            storeFile = file(ks)
+            storePassword = sp
+            keyAlias = al
+            keyPassword = kp
         }
     }
 

@@ -154,6 +154,21 @@
         android:textSize="24sp"
         android:visibility="gone" />
 
+    <!-- Información técnica del canal (tecla INFO) -->
+    <TextView
+        android:id="@+id/infoPanel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_margin="32dp"
+        android:background="@drawable/bg_osd"
+        android:lineSpacingExtra="4dp"
+        android:minWidth="360dp"
+        android:padding="22dp"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:visibility="gone" />
+
     <!-- Lista de canales (panel izquierdo) con cabecera YuzuPlay -->
     <LinearLayout
         android:id="@+id/listPanel"

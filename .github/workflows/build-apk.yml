@@ -34,13 +34,29 @@ jobs:
           curl --fail --location --retry 3 https://services.gradle.org/distributions/gradle-8.7-bin.zip --output /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /tmp
 
+      - name: Restore signing key from secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Falta el secret KEYSTORE_BASE64 (Settings > Secrets and variables > Actions)"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/tvcanales.jks"
+
       - name: Build debug APK
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/tvcanales.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: /tmp/gradle-8.7/bin/gradle --no-daemon assembleDebug -PbuildNumber=${{ github.run_number }}
 
       - name: Prepare release files
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk TVCanales.apk
           echo "${{ github.run_number }}" > version.txt
+          if [ -f NOVEDADES.txt ]; then cp NOVEDADES.txt novedades.txt; else echo "" > novedades.txt; fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -55,4 +71,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --cleanup-tag --yes || true
-          gh release create latest TVCanales.apk version.txt --title "Última versión" --notes "Build #${{ github.run_number }}" --latest
+          gh release create latest TVCanales.apk version.txt novedades.txt --title "Última versión" --notes "Build #${{ github.run_number }}" --latest

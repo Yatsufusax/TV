@@ -30,11 +30,13 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.dash.DashMediaSource
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -57,6 +59,7 @@ class MainActivity : Activity() {
     private var vlcAttached = false
     private var usingVlc = false
     private var audioApplied = false // ya se aplicó la pista de audio guardada para este canal
+    private lateinit var infoPanel: TextView
     private lateinit var osd: View
     private lateinit var osdNumber: TextView
     private lateinit var osdName: TextView
@@ -176,6 +179,7 @@ class MainActivity : Activity() {
         playerView = findViewById(R.id.player)
         vlcLayout = findViewById(R.id.vlcLayout)
         osd = findViewById(R.id.osd)
+        infoPanel = findViewById(R.id.infoPanel)
         osdNumber = findViewById(R.id.osdNumber)
         osdName = findViewById(R.id.osdName)
         osdGroup = findViewById(R.id.osdGroup)
@@ -212,7 +216,14 @@ class MainActivity : Activity() {
 
         // Si el decodificador de video principal falla, prueba con otro (software) antes de rendirse.
         val renderers = DefaultRenderersFactory(this).setEnableDecoderFallback(true)
-        player = ExoPlayer.Builder(this, renderers).build()
+        // Buffers chicos = el canal aparece más rápido al cambiar.
+        val load = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                Config.BUF_MIN_MS, Config.BUF_MAX_MS,
+                Config.BUF_START_MS, Config.BUF_REBUFFER_MS
+            )
+            .build()
+        player = ExoPlayer.Builder(this, renderers).setLoadControl(load).build()
         player.playWhenReady = true
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
@@ -299,9 +310,94 @@ class MainActivity : Activity() {
         // Arranca con la señal que ya anduvo antes; si no hay, con la principal.
         srcIndex = (workingSrc[ch.name] ?: 0).coerceIn(0, ch.sources.size - 1)
         modes = modesFor(ch.sources[srcIndex].url)
+        applyAspect()
         startPlayback()
         showOsd(ch)
         refreshShown()
+    }
+
+    // ───────────────────────── Ajuste de pantalla ─────────────────────────
+
+    private val aspectNames = arrayOf("Ajustar (ver todo)", "Zoom (llenar, recorta)", "Estirar")
+
+    private fun applyAspect() {
+        val ch = channels.getOrNull(index) ?: return
+        val a = repo.getAspect(ch.name).coerceIn(0, 2)
+        playerView.resizeMode = when (a) {
+            1 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            2 -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
+        try {
+            vlcPlayer?.videoScale = when (a) {
+                1 -> VlcPlayer.ScaleType.SURFACE_FIT_SCREEN
+                2 -> VlcPlayer.ScaleType.SURFACE_FILL
+                else -> VlcPlayer.ScaleType.SURFACE_BEST_FIT
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun cycleAspect() {
+        val ch = channels.getOrNull(index) ?: return
+        val next = (repo.getAspect(ch.name) + 1) % 3
+        repo.setAspect(ch.name, next)
+        applyAspect()
+        showMessage("Pantalla: ${aspectNames[next]}", 2500)
+    }
+
+    // ───────────────────────── Información del canal ─────────────────────────
+
+    private val hideInfo = Runnable { infoPanel.visibility = View.GONE }
+
+    private fun toggleInfo() {
+        if (infoPanel.visibility == View.VISIBLE) {
+            infoPanel.visibility = View.GONE
+            ui.removeCallbacks(hideInfo)
+            return
+        }
+        val ch = channels.getOrNull(index) ?: return
+        infoPanel.text = buildInfo(ch)
+        infoPanel.visibility = View.VISIBLE
+        ui.removeCallbacks(hideInfo)
+        ui.postDelayed(hideInfo, Config.INFO_MS)
+        showOsd(ch)
+    }
+
+    private fun buildInfo(ch: Channel): String {
+        val sb = StringBuilder()
+        sb.append("${ch.number}  ${ch.name}\n")
+        if (ch.group.isNotBlank()) sb.append("Grupo: ${ch.group}\n")
+        val src = currentSource(ch)
+        sb.append("Señal: ${srcIndex + 1} de ${ch.sources.size}\n")
+        sb.append("Servidor: ${try { Uri.parse(src.url).host ?: "?" } catch (_: Exception) { "?" }}\n")
+        sb.append("Motor: ${if (usingVlc) "VLC" else "ExoPlayer"}\n")
+        sb.append("Pantalla: ${aspectNames[repo.getAspect(ch.name).coerceIn(0, 2)]}\n")
+        try {
+            if (usingVlc) {
+                val vt = vlcPlayer?.currentVideoTrack
+                if (vt != null && vt.width > 0) sb.append("Video: ${vt.width}x${vt.height}  ${vt.codec ?: ""}\n")
+                val at = (vlcPlayer?.audioTracks ?: emptyArray()).firstOrNull { it.id == vlcPlayer?.audioTrack }
+                if (at != null) sb.append("Audio: ${at.name}\n")
+            } else {
+                val vf = player.videoFormat
+                if (vf != null) {
+                    val fps = if (vf.frameRate > 0) "  ${vf.frameRate.toInt()} fps" else ""
+                    val br = if (vf.bitrate > 0) "  ${vf.bitrate / 1000} kbps" else ""
+                    sb.append("Video: ${vf.width}x${vf.height}$fps$br  ${vf.sampleMimeType?.substringAfter('/') ?: ""}\n")
+                }
+                val af = player.audioFormat
+                if (af != null) {
+                    sb.append("Audio: ${af.sampleMimeType?.substringAfter('/') ?: ""}  ${af.language ?: ""}  ${af.channelCount} canales\n")
+                }
+            }
+        } catch (_: Throwable) {
+        }
+        val (now, _) = Epg.nowNext(ch)
+        if (now != null) {
+            sb.append("\nAhora: ${now.title}\n${fmt(now.start)} – ${fmt(now.stop)}")
+        }
+        return sb.toString().trimEnd()
     }
 
     private fun startPlayback() {
@@ -373,12 +469,13 @@ class MainActivity : Activity() {
         try {
             player.stop()
             ui.removeCallbacks(retryPlayback)
-            val lib = libVlc ?: LibVLC(this, arrayListOf("--network-caching=2000")).also { libVlc = it }
+            val lib = libVlc ?: LibVLC(this, arrayListOf("--network-caching=${Config.VLC_CACHE_MS}", "--clock-jitter=0", "--clock-synchro=0")).also { libVlc = it }
             val vp = vlcPlayer ?: VlcPlayer(lib).also { p ->
                 p.setEventListener { ev ->
                     when (ev.type) {
                         VlcPlayer.Event.Playing -> runOnUiThread {
                             hideMessage()
+                            applyAspect()
                             ui.postDelayed({ applySavedAudioVlc() }, 1500)
                         }
                         VlcPlayer.Event.EncounteredError -> runOnUiThread {
@@ -707,7 +804,7 @@ class MainActivity : Activity() {
                 if (digits.isNotEmpty()) commitDigits() else showList()
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_GUIDE -> showList()
             KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MENU, KeyEvent.KEYCODE_SETTINGS -> showMenu()
-            KeyEvent.KEYCODE_INFO -> channels.getOrNull(index)?.let { showOsd(it) }
+            KeyEvent.KEYCODE_INFO -> toggleInfo()
             KeyEvent.KEYCODE_LAST_CHANNEL -> if (prevIndex in channels.indices) tune(prevIndex)
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE ->
                 if (usingVlc) {
@@ -749,6 +846,8 @@ class MainActivity : Activity() {
             "Ocultar canales caídos:  " + (if (repo.hideDead) "SÍ" else "NO"),
             "Guía de programación (EPG)",
             "Guía: diagnóstico (canal actual)",
+            "Información del canal",
+            "Pantalla:  " + aspectNames[repo.getAspect(channels.getOrNull(index)?.name ?: "").coerceIn(0, 2)],
             "Buscar actualización de la app",
             "Cerrar"
         )
@@ -772,7 +871,9 @@ class MainActivity : Activity() {
                         .setMessage(Epg.debug(channels.getOrNull(index)))
                         .setPositiveButton("Cerrar", null)
                         .show()
-                    7 -> AppUpdater.check(this, true)
+                    7 -> toggleInfo()
+                    8 -> cycleAspect()
+                    9 -> AppUpdater.check(this, true)
                 }
             }
             .show()
