@@ -68,6 +68,9 @@ class MainActivity : Activity() {
     private lateinit var digitsView: TextView
     private lateinit var messageView: TextView
     private lateinit var listView: ListView
+    private lateinit var listPanel: View
+    private lateinit var listCount: TextView
+    private lateinit var splash: View
     private lateinit var adapter: ChannelAdapter
 
     private val ui = Handler(Looper.getMainLooper())
@@ -165,6 +168,13 @@ class MainActivity : Activity() {
         digitsView = findViewById(R.id.digits)
         messageView = findViewById(R.id.message)
         listView = findViewById(R.id.channelList)
+        listPanel = findViewById(R.id.listPanel)
+        listCount = findViewById(R.id.listCount)
+        splash = findViewById(R.id.splash)
+        // Pantalla de bienvenida: se desvanece sola mientras el canal ya está arrancando
+        ui.postDelayed({
+            splash.animate().alpha(0f).setDuration(450).withEndAction { splash.visibility = View.GONE }.start()
+        }, 1700)
 
         repo = ChannelRepository(this)
         channels = repo.loadLocal()
@@ -464,7 +474,7 @@ class MainActivity : Activity() {
 
     private fun showList() {
         refreshShown()
-        listView.visibility = View.VISIBLE
+        listPanel.visibility = View.VISIBLE
         panelVisible = true
         listView.requestFocus()
         listView.post {
@@ -479,11 +489,12 @@ class MainActivity : Activity() {
     private fun refreshShown() {
         val cur = channels.getOrNull(index)
         shown = if (repo.hideDead) channels.filter { !isDead(it) || it === cur } else channels
+        listCount.text = "${shown.size} canales"
         adapter.notifyDataSetChanged()
     }
 
     private fun hideList() {
-        listView.visibility = View.GONE
+        listPanel.visibility = View.GONE
         panelVisible = false
     }
 
@@ -559,7 +570,7 @@ class MainActivity : Activity() {
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         // Si la lista está abierta y se toca sobre ella, la lista maneja el toque (scroll / elegir canal).
-        val onList = panelVisible && ev.x <= listView.width
+        val onList = panelVisible && ev.x <= listPanel.width
         if (!onList) {
             gestures.onTouchEvent(ev)
             return true
@@ -897,7 +908,13 @@ class MainActivity : Activity() {
             v.findViewById<TextView>(R.id.itemNum).text = ch.number.toString()
             val nameView = v.findViewById<TextView>(R.id.itemName)
             nameView.text = (if (isCurrent) "▶ " else "") + ch.name
-            nameView.setTextColor(if (dead) 0xFF78909C.toInt() else 0xFFFFFFFF.toInt())
+            nameView.setTextColor(
+                when {
+                    dead -> 0xFF78909C.toInt()
+                    isCurrent -> 0xFFFFC93C.toInt()
+                    else -> 0xFFFFFFFF.toInt()
+                }
+            )
             v.findViewById<TextView>(R.id.itemGroup).text = ch.group
             LogoLoader.load(v.findViewById<ImageView>(R.id.itemLogo), ch.logo)
             val nowView = v.findViewById<TextView>(R.id.itemNow)

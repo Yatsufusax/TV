@@ -1,4 +1,4 @@
-# Mis Canales — reproductor de listas .m3u para Google TV / Android TV
+# YuzuPlay — reproductor de listas .m3u para Google TV / Android TV
 
 Reproduce los canales de tu lista, se cambia con el control remoto y se actualiza
 desde GitHub cuando se cae algún canal.
@@ -22,7 +22,7 @@ desde GitHub cuando se cae algún canal.
    `adb install app-debug.apk`.
    Alternativa sin PC: pasá el APK con la app "Send Files to TV" e instalalo con un
    explorador de archivos (permitir "orígenes desconocidos").
-3. Aparece como **Mis Canales** en las aplicaciones.
+3. Aparece como **YuzuPlay** en las aplicaciones.
 
 ## 3) Actualizar los canales por GitHub
 
