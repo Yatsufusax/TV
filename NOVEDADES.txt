@@ -1,7 +1,11 @@
-ACTUALIZACION V21
-
+[OBLIGATORIA]
 - Cambio de canal más rápido
 - Tecla INFO: muestra resolución, audio, señal y programa actual
 - Ajuste de pantalla por canal (ajustar / zoom / estirar) desde el menú
 - Cartoon Network y otros canales con VLC ya no se quedan congelados: reconectan solos
 - La app ahora muestra las novedades antes de actualizar
+- Mejoras de seguridad: la primera vez pide un código de acceso
+- La app busca versiones nuevas sola cada pocos minutos, sin tener que cerrarla y abrirla
+- Código de acceso para mayor seguridad
+- Menú nuevo: más grande, centrado y con iconos
+- Los avisos de actualización salen en el centro de la pantalla

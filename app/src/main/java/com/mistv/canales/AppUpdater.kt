@@ -5,6 +5,8 @@ import android.app.AlertDialog
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.widget.Toast
 import androidx.core.content.FileProvider
@@ -41,7 +43,7 @@ object AppUpdater {
                 } else ""
                 a.runOnUiThread {
                     if (remote > local) {
-                        if (manual || remote != declined) ask(a, remote, local, news)
+                        if (manual || remote != declined || isForced(news)) ask(a, remote, local, news)
                     } else if (manual) {
                         toast(a, "Ya tenés la última versión (v$local)")
                     }
@@ -54,18 +56,68 @@ object AppUpdater {
         }.start()
     }
 
+    // Si la primera línea de NOVEDADES.txt es [OBLIGATORIA], la actualización no se puede posponer.
+    private const val TAG_FORCED = "[OBLIGATORIA]"
+    @Volatile private var dialogShowing = false
+
+    private fun isForced(news: String): Boolean =
+        news.trimStart().startsWith(TAG_FORCED, ignoreCase = true)
+
+    private fun cleanNews(news: String): String =
+        if (isForced(news)) news.trimStart().substring(TAG_FORCED.length).trim() else news.trim()
+
+    @Volatile private var forcedPending = false
+
+    private fun forcedMessage(remote: Long, local: Long, text: String, left: Int): String =
+        "Hay una versión nueva (v$remote). Tenés la v$local." +
+            (if (text.isNotBlank()) "\n\nNovedades:\n${text.take(1200)}" else "") +
+            "\n\nHay que actualizar para seguir usando la app.\nSe cierra en $left segundos si no actualizás."
+
     private fun ask(a: Activity, remote: Long, local: Long, news: String) {
-        if (a.isFinishing) return
-        AlertDialog.Builder(a)
-            .setTitle("Actualización disponible")
-            .setMessage(
+        if (a.isFinishing || dialogShowing) return
+        val forced = isForced(news)
+        val text = cleanNews(news)
+        dialogShowing = true
+        forcedPending = forced
+        val cd = CenterDialog(a, if (forced) "Actualización obligatoria" else "Actualización disponible")
+        if (forced) {
+            var left = Config.FORCED_CLOSE_SECONDS
+            val handler = Handler(Looper.getMainLooper())
+            cd.setMessage(forcedMessage(remote, local, text, left))
+            cd.setCancelable(false)
+            cd.addButton("Salir", false) { a.finishAffinity() }
+            cd.addButton("Actualizar ahora", true) { download(a) }
+            val tick = object : Runnable {
+                override fun run() {
+                    if (!cd.isShowing) return
+                    left--
+                    if (left <= 0) {
+                        // No actualizó a tiempo: se cierra la app.
+                        cd.dismiss()
+                        a.finishAffinity()
+                        return
+                    }
+                    cd.setMessage(forcedMessage(remote, local, text, left))
+                    handler.postDelayed(this, 1000)
+                }
+            }
+            cd.setOnDismiss {
+                dialogShowing = false
+                handler.removeCallbacks(tick)
+            }
+            cd.show()
+            handler.postDelayed(tick, 1000)
+        } else {
+            cd.setMessage(
                 "Hay una versión nueva (v$remote). Tenés la v$local." +
-                    (if (news.isNotBlank()) "\n\nNovedades:\n${news.take(1200)}" else "") +
+                    (if (text.isNotBlank()) "\n\nNovedades:\n${text.take(1200)}" else "") +
                     "\n\n¿Descargar e instalar?"
             )
-            .setPositiveButton("Actualizar") { _, _ -> download(a) }
-            .setNegativeButton("Ahora no") { _, _ -> declined = remote }
-            .show()
+            cd.addButton("Ahora no", false) { declined = remote }
+            cd.addButton("Actualizar", true) { download(a) }
+            cd.setOnDismiss { dialogShowing = false }
+            cd.show()
+        }
     }
 
     private fun download(a: Activity) {
@@ -89,6 +141,8 @@ object AppUpdater {
                 a.runOnUiThread { install(a, file) }
             } catch (ex: Exception) {
                 toast(a, "No se pudo descargar: ${ex.message}")
+                // Si la actualización es obligatoria, vuelve a mostrar el aviso en vez de dejar seguir.
+                if (forcedPending) Handler(Looper.getMainLooper()).postDelayed({ check(a, false) }, 3000)
             } finally {
                 busy = false
             }

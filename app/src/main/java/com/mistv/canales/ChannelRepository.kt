@@ -10,10 +10,12 @@ class ChannelRepository(private val ctx: Context) {
     private val prefs = ctx.getSharedPreferences("tv", Context.MODE_PRIVATE)
     private val cacheFile = File(ctx.filesDir, "lista.m3u")
 
-    var listUrl: String
-        get() = prefs.getString("url", Config.DEFAULT_LIST_URL) ?: ""
-        set(v) {
-            prefs.edit().putString("url", v.trim()).apply()
+    /** La dirección de la lista llega cifrada dentro de la app y se abre con el código de acceso. */
+    val listUrl: String
+        get() {
+            val fromCode = AccessGate.listUrl(ctx)
+            if (fromCode.isNotBlank()) return fromCode
+            return prefs.getString("url", Config.DEFAULT_LIST_URL) ?: ""
         }
 
     /** Pista de audio elegida por el usuario para un canal (-1 = ninguna). */

@@ -95,3 +95,34 @@ congela 3 veces seguidas, pasa al siguiente link de respaldo del canal.
 * La lista que viene dentro de la app (`app/src/main/assets/lista.m3u`) se usa solo
   hasta que se descargue una de GitHub.
 * Los enlaces de YouTube (`youtube.com/...`) no se pueden reproducir.
+
+## Código de acceso
+
+La app pide un código la primera vez que se abre en cada equipo. Hay dos tipos (solo guarda las huellas, nunca los códigos):
+
+- **Permanente:** se pide una sola vez y no vence. Para cambiarlo: `python3 tools/generar_codigo.py permanente` (o con el código que quieras al final).
+- **Mensual:** uno distinto por mes, al azar. Sirve solo durante su mes: al terminar, la app lo vuelve a pedir y hace falta el del mes nuevo.
+  Generar más: `python3 tools/generar_codigo.py meses AAAA-MM CANTIDAD` (ej: `meses 2028-10 24`). Los códigos quedan en
+  `codigos_mensuales.txt`, que tenés que guardar en privado y **no subir a GitHub**. Cuando se acaben los meses cargados hay que
+  publicar una versión nueva con más.
+- Se acepta con o sin guion y en mayúsculas o minúsculas. Después de 5 errores seguidos la app espera un rato antes de dejar probar de nuevo.
+- Si atrasan el reloj del equipo para reusar un código viejo, la app sigue usando la fecha más alta que ya vio.
+- **La dirección de la lista ya no se carga a mano ni aparece en ningún menú.** Está dentro de la app cifrada una vez por cada código
+  (el permanente y los mensuales), con una llave que sale del propio código. Al escribir un código válido la app la descifra y la guarda.
+  Sin un código válido, lo que queda en el APK no se puede leer. Al generar códigos hay que pasar `--url DIRECCION` (mirá `tools/generar_codigo.py`).
+  Si algún día cambiás de gist: `python3 tools/generar_codigo.py url DIRECCION_NUEVA --permanente TU_CODIGO` (con `codigos_mensuales.txt` en la carpeta).
+- `app/src/main/assets/lista.m3u` es solo un marcador: la lista real se baja de tu gist apenas se abre la app.
+
+## Actualización obligatoria
+
+La app busca una versión nueva al abrirse, al volver de otra pantalla y cada 1 minuto mientras está abierta (`UPDATE_CHECK_MS` en `Config.kt`).
+Para que una versión **no se pueda posponer**, poné `[OBLIGATORIA]` como primera línea de `NOVEDADES.txt` antes de subirla.
+Ese cartel solo tiene los botones "Actualizar ahora" y "Salir", muestra una cuenta regresiva y, si no se actualiza a tiempo,
+la app se cierra sola (`FORCED_CLOSE_SECONDS`, 60 segundos). Si se cancela el instalador o falla la descarga, el cartel vuelve a aparecer.
+(Las versiones que ya estén instaladas sin esta función siguen mostrando el aviso normal, con "Ahora no".)
+Si el repositorio es privado, la app no puede ver la versión nueva: dejalo público unos 10 minutos después de que Actions termine.
+
+## Menú y avisos
+
+El menú (`MenuDialog.kt`) es un panel centrado con una cuadrícula de opciones con icono y funciona con el control remoto y con toque.
+Los iconos están en `res/drawable/ic_m_*.xml`. Los avisos de actualización usan `CenterDialog` (en `UiKit.kt`), siempre en el centro.

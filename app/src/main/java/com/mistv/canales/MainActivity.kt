@@ -144,11 +144,30 @@ class MainActivity : Activity() {
             ui.postDelayed(this, Config.AUTO_UPDATE_MS)
         }
     }
+    // Busca una versión nueva de la app cada pocos minutos (no solo al abrirla).
+    private val updateCheck = object : Runnable {
+        override fun run() {
+            // Si venció el código mensual con la app abierta, vuelve a pedirlo.
+            if (!AccessGate.isUnlocked(this@MainActivity)) {
+                startActivity(android.content.Intent(this@MainActivity, AccessActivity::class.java))
+                this@MainActivity.finish()
+                return
+            }
+            if (!stopped) AppUpdater.check(this@MainActivity, false)
+            ui.postDelayed(this, Config.UPDATE_CHECK_MS)
+        }
+    }
 
     // ───────────────────────── Ciclo de vida ─────────────────────────
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Sin código de acceso no se carga nada: se pasa a la pantalla del código.
+        if (!AccessGate.isUnlocked(this)) {
+            startActivity(android.content.Intent(this, AccessActivity::class.java))
+            finish()
+            return
+        }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContentView(R.layout.activity_main)
         volumeControlStream = AudioManager.STREAM_MUSIC // botones de volumen = volumen multimedia
@@ -259,7 +278,7 @@ class MainActivity : Activity() {
         ui.postDelayed(watchdog, 8000)
         ui.postDelayed(autoUpdate, 1500)
         ui.postDelayed(epgUpdate, 3000)
-        ui.postDelayed({ AppUpdater.check(this, false) }, 5000)
+        ui.postDelayed(updateCheck, 5000)
     }
 
     override fun onStart() {
@@ -267,19 +286,21 @@ class MainActivity : Activity() {
         if (stopped) {
             stopped = false
             if (channels.isNotEmpty()) startPlayback()
+            // Al volver (por ejemplo del instalador cancelado) se vuelve a mirar si hay versión nueva.
+            ui.postDelayed({ AppUpdater.check(this, false) }, 1500)
         }
     }
 
     override fun onStop() {
         super.onStop()
         stopped = true
-        player.stop()
+        if (::player.isInitialized) player.stop()
         stopVlc()
     }
 
     override fun onDestroy() {
         ui.removeCallbacksAndMessages(null)
-        player.release()
+        if (::player.isInitialized) player.release()
         stopVlc()
         vlcPlayer?.release()
         libVlc?.release()
@@ -850,45 +871,33 @@ class MainActivity : Activity() {
     // ───────────────────────── Menú y actualización ─────────────────────────
 
     private fun showMenu() {
-        val items = arrayOf(
-            "Actualizar canales ahora",
-            "Cambiar dirección de la lista (GitHub)",
-            "Cambiar pista de audio (idioma)",
-            "Probar canales (detectar caídos)",
-            "Ocultar canales caídos:  " + (if (repo.hideDead) "SÍ" else "NO"),
-            "Guía de programación (EPG)",
-            "Guía: diagnóstico (canal actual)",
-            "Información del canal",
-            "Pantalla:  " + aspectNames[repo.getAspect(channels.getOrNull(index)?.name ?: "").coerceIn(0, 2)],
-            "Buscar actualización de la app",
-            "Cerrar"
+        val aspectNow = aspectNames[repo.getAspect(channels.getOrNull(index)?.name ?: "").coerceIn(0, 2)]
+            .substringBefore(" (")
+        val entries = listOf(
+            MenuEntry(R.drawable.ic_m_refresh, "Actualizar canales", null, "#4ADE80") { updateNow(true) },
+            MenuEntry(R.drawable.ic_m_audio, "Pista de audio", "Idioma", "#C084FC") { showAudioMenu() },
+            MenuEntry(R.drawable.ic_m_check, "Probar canales", "Detectar caídos", "#2DD4BF") { testChannels() },
+            MenuEntry(R.drawable.ic_m_eye, "Canales caídos", if (repo.hideDead) "Ocultos" else "Visibles", "#FBBF24") {
+                repo.hideDead = !repo.hideDead
+                refreshShown()
+                toast(if (repo.hideDead) "Canales caídos ocultos" else "Canales caídos visibles")
+            },
+            MenuEntry(R.drawable.ic_m_calendar, "Guía (EPG)", "Programación", "#60A5FA") { askEpg() },
+            MenuEntry(R.drawable.ic_m_help, "Diagnóstico", "De la guía", "#94A3B8") {
+                AlertDialog.Builder(this)
+                    .setTitle("Diagnóstico de la guía")
+                    .setMessage(Epg.debug(channels.getOrNull(index)))
+                    .setPositiveButton("Cerrar", null)
+                    .show()
+            },
+            MenuEntry(R.drawable.ic_m_info, "Info del canal", null, "#38BDF8") { toggleInfo() },
+            MenuEntry(R.drawable.ic_m_aspect, "Pantalla", aspectNow, "#F472B6") { cycleAspect() },
+            MenuEntry(R.drawable.ic_m_download, "Actualizar app", "v${AppUpdater.currentVersion(this)}", "#34D399") {
+                AppUpdater.check(this, true)
+            },
+            MenuEntry(R.drawable.ic_m_close, "Cerrar", null, "#F87171") { }
         )
-        AlertDialog.Builder(this)
-            .setTitle("Menú  ·  ${channels.size} canales  ·  v${AppUpdater.currentVersion(this)}")
-            .setItems(items) { d, which ->
-                d.dismiss()
-                when (which) {
-                    0 -> updateNow(true)
-                    1 -> askUrl()
-                    2 -> showAudioMenu()
-                    3 -> testChannels()
-                    4 -> {
-                        repo.hideDead = !repo.hideDead
-                        refreshShown()
-                        toast(if (repo.hideDead) "Canales caídos ocultos" else "Canales caídos visibles")
-                    }
-                    5 -> askEpg()
-                    6 -> AlertDialog.Builder(this)
-                        .setTitle("Diagnóstico de la guía")
-                        .setMessage(Epg.debug(channels.getOrNull(index)))
-                        .setPositiveButton("Cerrar", null)
-                        .show()
-                    7 -> toggleInfo()
-                    8 -> cycleAspect()
-                    9 -> AppUpdater.check(this, true)
-                }
-            }
-            .show()
+        MenuDialog.show(this, "Menú", "${channels.size} canales  ·  v${AppUpdater.currentVersion(this)}", entries)
     }
 
     // ───────────────────────── Pista de audio (idioma) ─────────────────────────
@@ -1040,29 +1049,9 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun askUrl() {
-        val edit = EditText(this)
-        edit.setText(repo.listUrl)
-        edit.hint = "https://raw.githubusercontent.com/usuario/repo/main/lista.m3u"
-        edit.setSingleLine(true)
-        val box = LinearLayout(this)
-        box.setPadding(48, 16, 48, 0)
-        box.addView(edit, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
-        AlertDialog.Builder(this)
-            .setTitle("Dirección de la lista")
-            .setView(box)
-            .setPositiveButton("Guardar y actualizar") { _, _ ->
-                repo.listUrl = edit.text.toString()
-                updateNow(true)
-            }
-            .setNegativeButton("Cancelar", null)
-            .show()
-    }
-
     private fun updateNow(manual: Boolean) {
         if (repo.listUrl.isBlank()) {
-            if (manual) toast("Falta la dirección de GitHub (Menú → Cambiar dirección)")
+            if (manual) toast("Todavía no hay lista cargada. Cerrá la app y volvé a abrirla")
             return
         }
         if (manual) toast("Actualizando canales…")
