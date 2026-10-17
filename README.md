@@ -126,3 +126,13 @@ Si el repositorio es privado, la app no puede ver la versión nueva: dejalo púb
 
 El menú (`MenuDialog.kt`) es un panel centrado con una cuadrícula de opciones con icono y funciona con el control remoto y con toque.
 Los iconos están en `res/drawable/ic_m_*.xml`. Los avisos de actualización usan `CenterDialog` (en `UiKit.kt`), siempre en el centro.
+
+## Fuentes (elegir el enlace a mano)
+
+*Menú → Fuentes* muestra los enlaces del canal que estás viendo (los que tienen el mismo nombre en la lista): "Automático" y "Fuente 1, 2, 3…".
+- Al elegir una fuente se reproduce enseguida y queda **fijada** para ese canal: la próxima vez que lo abras empieza por esa. Si falla, la app sigue probando las siguientes como siempre.
+- **Automático** borra la fijación y vuelve al comportamiento de siempre (la primera que ande).
+- Cada fuente muestra si se está reproduciendo, si está fijada y si quedó "marcada caída" en la última prueba de canales. Se puede elegir igual.
+- Si una fuente marcada como caída vuelve a andar, se le saca la marca sola.
+- No se muestran las direcciones de los enlaces, solo "Fuente N".
+

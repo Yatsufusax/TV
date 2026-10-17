@@ -25,6 +25,14 @@ class ChannelRepository(private val ctx: Context) {
         prefs.edit().putInt("aud_$channel", value).apply()
     }
 
+    /** Fuente (enlace) que el usuario fijó a mano para un canal (-1 = automático). */
+    fun getPinnedSource(channel: String): Int = prefs.getInt("src_$channel", -1)
+
+    fun setPinnedSource(channel: String, value: Int) {
+        if (value < 0) prefs.edit().remove("src_$channel").apply()
+        else prefs.edit().putInt("src_$channel", value).apply()
+    }
+
     /** Ajuste de pantalla por canal: 0 = ajustar, 1 = zoom (recorta), 2 = estirar. */
     fun getAspect(channel: String): Int = prefs.getInt("asp_$channel", 0)
 

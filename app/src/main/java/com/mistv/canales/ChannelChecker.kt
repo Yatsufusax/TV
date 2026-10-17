@@ -25,6 +25,15 @@ object ChannelChecker {
 
     fun isDeadUrl(url: String): Boolean = synchronized(dead) { dead.contains(key(url)) }
 
+    /** Si un link marcado como caído vuelve a andar, se le saca la marca (y se guarda). */
+    fun markAlive(repo: ChannelRepository, url: String) {
+        var snapshot: HashSet<String>? = null
+        synchronized(dead) {
+            if (dead.remove(key(url))) snapshot = HashSet(dead)
+        }
+        snapshot?.let { repo.setDeadUrls(it) }
+    }
+
     /** Un canal está caído solo si TODAS sus señales (principal y respaldos) están caídas. */
     fun isDead(ch: Channel): Boolean = ch.sources.all { isDeadUrl(it.url) }
 

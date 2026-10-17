@@ -108,7 +108,8 @@ class MainActivity : Activity() {
         srcIndex = 0
         channels.getOrNull(index)?.let {
             workingSrc.remove(it.name)
-            modes = modesFor(it.sources[0].url)
+            srcIndex = repo.getPinnedSource(it.name).coerceIn(0, it.sources.size - 1)
+            modes = modesFor(it.sources[srcIndex].url)
         }
         startPlayback()
     }
@@ -259,7 +260,11 @@ class MainActivity : Activity() {
                 if (playbackState == Player.STATE_READY) {
                     ui.removeCallbacks(retryPlayback)
                     hideMessage()
-                    channels.getOrNull(index)?.let { workingSrc[it.name] = srcIndex }
+                    channels.getOrNull(index)?.let {
+                        workingSrc[it.name] = srcIndex
+                        // Si este link estaba marcado como caído y anda, se le saca la marca.
+                        ChannelChecker.markAlive(repo, currentSource(it).url)
+                    }
                     checkVideoTrack()
                     applySavedAudioExo()
                 }
@@ -329,8 +334,9 @@ class MainActivity : Activity() {
         ui.removeCallbacks(retryPlayback)
         hideMessage()
         attempt = 0
-        // Arranca con la señal que ya anduvo antes; si no hay, con la principal.
-        srcIndex = (workingSrc[ch.name] ?: 0).coerceIn(0, ch.sources.size - 1)
+        // Arranca con la fuente que fijó el usuario; si no hay, con la que ya anduvo antes; si no, con la principal.
+        val pinned = repo.getPinnedSource(ch.name)
+        srcIndex = (if (pinned >= 0) pinned else (workingSrc[ch.name] ?: 0)).coerceIn(0, ch.sources.size - 1)
         modes = modesFor(ch.sources[srcIndex].url)
         applyAspect()
         startPlayback()
@@ -640,6 +646,39 @@ class MainActivity : Activity() {
         return true
     }
 
+    /** Elige a mano la fuente (enlace) del canal actual. pin = true la deja fijada para este canal. */
+    private fun selectSource(i: Int, pin: Boolean = true) {
+        val ch = channels.getOrNull(index) ?: return
+        if (i !in ch.sources.indices) return
+        ui.removeCallbacks(retryPlayback)
+        srcIndex = i
+        attempt = 0
+        stallCount = 0
+        modes = modesFor(ch.sources[i].url)
+        workingSrc[ch.name] = i
+        repo.setPinnedSource(ch.name, if (pin) i else -1)
+        showMessage(
+            if (pin) "Fuente ${i + 1} de ${ch.sources.size} (fijada)" else "Fuente automática",
+            2500
+        )
+        startPlayback()
+    }
+
+    private fun showSources() {
+        val ch = channels.getOrNull(index) ?: return
+        val n = ch.sources.size
+        if (n < 2) {
+            toast("Este canal tiene una sola fuente")
+            return
+        }
+        val dead = ch.sources.map { ChannelChecker.isDeadUrl(it.url) }
+        SourceDialog.show(
+            this, ch.name, n, srcIndex.coerceIn(0, n - 1), repo.getPinnedSource(ch.name), dead,
+            { selectSource(0, false) },
+            { i -> selectSource(i, true) }
+        )
+    }
+
     private fun onPlaybackError() {
         if (attempt < modes.size - 1) {
             attempt++
@@ -876,6 +915,7 @@ class MainActivity : Activity() {
         val entries = listOf(
             MenuEntry(R.drawable.ic_m_refresh, "Actualizar canales", null, "#4ADE80") { updateNow(true) },
             MenuEntry(R.drawable.ic_m_audio, "Pista de audio", "Idioma", "#C084FC") { showAudioMenu() },
+            MenuEntry(R.drawable.ic_m_swap, "Fuentes", "Cambiar enlace", "#FB923C") { showSources() },
             MenuEntry(R.drawable.ic_m_check, "Probar canales", "Detectar caídos", "#2DD4BF") { testChannels() },
             MenuEntry(R.drawable.ic_m_eye, "Canales caídos", if (repo.hideDead) "Ocultos" else "Visibles", "#FBBF24") {
                 repo.hideDead = !repo.hideDead
@@ -894,8 +934,7 @@ class MainActivity : Activity() {
             MenuEntry(R.drawable.ic_m_aspect, "Pantalla", aspectNow, "#F472B6") { cycleAspect() },
             MenuEntry(R.drawable.ic_m_download, "Actualizar app", "v${AppUpdater.currentVersion(this)}", "#34D399") {
                 AppUpdater.check(this, true)
-            },
-            MenuEntry(R.drawable.ic_m_close, "Cerrar", null, "#F87171") { }
+            }
         )
         MenuDialog.show(this, "Menú", "${channels.size} canales  ·  v${AppUpdater.currentVersion(this)}", entries)
     }
