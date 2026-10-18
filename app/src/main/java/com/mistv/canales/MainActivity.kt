@@ -82,8 +82,13 @@ class MainActivity : Activity() {
     private lateinit var gestures: GestureDetector
 
     private var channels: List<Channel> = emptyList()
-    private var shown: List<Channel> = emptyList() // canales que se muestran en la lista (puede ocultar caídos)
-    private var categoryFilter: String? = null // categoría (grupo) elegida en el menú; null = todas
+    /** Fila de la lista lateral: una categoría (carpeta) o un canal dentro de la categoría abierta. */
+    private sealed class Row {
+        class Header(val group: String, val count: Int, val open: Boolean) : Row()
+        class Chan(val ch: Channel) : Row()
+    }
+    private var rows: List<Row> = emptyList() // filas visibles de la lista (puede ocultar caídos)
+    private var expandedGroup: String? = null // categoría desplegada en la lista; solo una a la vez
     private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
     private var index = 0
     private var prevIndex = -1
@@ -222,17 +227,25 @@ class MainActivity : Activity() {
 
         repo = ChannelRepository(this)
         channels = repo.loadLocal()
-        shown = channels
         LogoLoader.init(this)
         ChannelChecker.load(repo)
 
         adapter = ChannelAdapter()
         listView.adapter = adapter
         listView.onItemClickListener = AdapterView.OnItemClickListener { _, _, pos, _ ->
-            val picked = shown.getOrNull(pos)
-            if (picked != null) {
-                hideList()
-                tune(channels.indexOfFirst { it === picked })
+            when (val row = rows.getOrNull(pos)) {
+                is Row.Header -> {
+                    // Abre o cierra la categoría (una sola abierta a la vez) y deja el foco en su título
+                    expandedGroup = if (row.open) null else row.group
+                    refreshShown()
+                    val at = rows.indexOfFirst { it is Row.Header && it.group == row.group }
+                    listView.setSelection(at.coerceAtLeast(0))
+                }
+                is Row.Chan -> {
+                    hideList()
+                    tune(channels.indexOfFirst { it === row.ch })
+                }
+                null -> {}
             }
         }
 
@@ -740,13 +753,15 @@ class MainActivity : Activity() {
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_LONG).show()
 
     private fun showList() {
+        // Al abrir, se despliega la categoría del canal que estás viendo y queda marcado
+        expandedGroup = channels.getOrNull(index)?.group
         refreshShown()
         listPanel.visibility = View.VISIBLE
         panelVisible = true
         listView.requestFocus()
         listView.post {
             val cur = channels.getOrNull(index)
-            listView.setSelection(shown.indexOfFirst { it === cur }.coerceAtLeast(0))
+            listView.setSelection(rows.indexOfFirst { it is Row.Chan && it.ch === cur }.coerceAtLeast(0))
         }
     }
 
@@ -755,12 +770,18 @@ class MainActivity : Activity() {
     /** Recalcula qué canales se ven en la lista (si está activado, oculta los caídos). */
     private fun refreshShown() {
         val cur = channels.getOrNull(index)
-        // Si la categoría elegida ya no existe en la lista (por una actualización), se vuelve a "Todas"
-        if (categoryFilter != null && channels.none { it.group == categoryFilter }) categoryFilter = null
-        val cat = categoryFilter
-        val byCat = if (cat == null) channels else channels.filter { it.group == cat }
-        shown = if (repo.hideDead) byCat.filter { !isDead(it) || it === cur } else byCat
-        listCount.text = if (cat == null) "${shown.size} canales" else "$cat · ${shown.size} canales"
+        val visible = if (repo.hideDead) channels.filter { !isDead(it) || it === cur } else channels
+        // Categorías en el orden en que aparecen en la lista; solo la desplegada muestra sus canales
+        val byGroup = LinkedHashMap<String, MutableList<Channel>>()
+        for (c in visible) byGroup.getOrPut(c.group) { ArrayList() }.add(c)
+        val out = ArrayList<Row>()
+        for ((g, list) in byGroup) {
+            val open = g == expandedGroup
+            out.add(Row.Header(g, list.size, open))
+            if (open) list.forEach { out.add(Row.Chan(it)) }
+        }
+        rows = out
+        listCount.text = "${visible.size} canales"
         adapter.notifyDataSetChanged()
     }
 
@@ -918,7 +939,6 @@ class MainActivity : Activity() {
         val aspectNow = aspectNames[repo.getAspect(channels.getOrNull(index)?.name ?: "").coerceIn(0, 2)]
             .substringBefore(" (")
         val entries = listOf(
-            MenuEntry(R.drawable.ic_m_category, "Categorías", categoryFilter ?: "Todas", "#F59E0B") { showCategories() },
             MenuEntry(R.drawable.ic_m_refresh, "Actualizar canales", null, "#4ADE80") { updateNow(true) },
             MenuEntry(R.drawable.ic_m_audio, "Pista de audio", "Idioma", "#C084FC") { showAudioMenu() },
             MenuEntry(R.drawable.ic_m_swap, "Fuentes", "Cambiar enlace", "#FB923C") { showSources() },
@@ -943,16 +963,6 @@ class MainActivity : Activity() {
             }
         )
         MenuDialog.show(this, "Menú", "${channels.size} canales  ·  v${AppUpdater.currentVersion(this)}", entries)
-    }
-
-    /** Categorías = los grupos (group-title) de la lista, en el orden en que aparecen. */
-    private fun showCategories() {
-        val groups = LinkedHashMap<String, Int>()
-        for (c in channels) groups[c.group] = (groups[c.group] ?: 0) + 1
-        CategoryDialog.show(this, channels.size, groups.map { Pair(it.key, it.value) }, categoryFilter) { picked ->
-            categoryFilter = picked
-            showList() // abre la lista ya filtrada
-        }
     }
 
     // ───────────────────────── Pista de audio (idioma) ─────────────────────────
@@ -1152,13 +1162,26 @@ class MainActivity : Activity() {
     // ───────────────────────── Adaptador de la lista ─────────────────────────
 
     private inner class ChannelAdapter : BaseAdapter() {
-        override fun getCount() = shown.size
-        override fun getItem(position: Int) = shown[position]
+        override fun getCount() = rows.size
+        override fun getItem(position: Int): Any = rows[position]
         override fun getItemId(position: Int) = position.toLong()
+        override fun getViewTypeCount() = 2
+        override fun getItemViewType(position: Int) = if (rows[position] is Row.Header) 0 else 1
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val row = rows[position]
+            if (row is Row.Header) {
+                val h = convertView
+                    ?: LayoutInflater.from(this@MainActivity).inflate(R.layout.item_category, parent, false)
+                h.findViewById<TextView>(R.id.catArrow).text = if (row.open) "▾" else "▸"
+                val name = h.findViewById<TextView>(R.id.catName)
+                name.text = row.group
+                name.setTextColor(if (row.open) 0xFFFFC93C.toInt() else 0xFFFFFFFF.toInt())
+                h.findViewById<TextView>(R.id.catCount).text = row.count.toString()
+                return h
+            }
             val v = convertView
                 ?: LayoutInflater.from(this@MainActivity).inflate(R.layout.item_channel, parent, false)
-            val ch = shown[position]
+            val ch = (row as Row.Chan).ch
             val isCurrent = ch === channels.getOrNull(index)
             val dead = isDead(ch)
             v.findViewById<TextView>(R.id.itemNum).text = ch.number.toString()
