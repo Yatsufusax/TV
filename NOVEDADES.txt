@@ -1,6 +1,6 @@
 OBLIGATORIA
 
-- Lista lateral con categorías: tocá una (Deportes, Películas, Infantil...) y se despliegan sus canales
+- Lista lateral con categorías a la izquierda (Deportes, Películas, Infantil...): elegí una y ves sus canales
 - Cambio de canal más rápido
 - Tecla INFO: muestra resolución, audio, señal y programa actual
 - Ajuste de pantalla por canal (ajustar / zoom / estirar) desde el menú

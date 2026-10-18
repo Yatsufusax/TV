@@ -172,7 +172,7 @@
     <!-- Lista de canales (panel izquierdo) con cabecera YuzuPlay -->
     <LinearLayout
         android:id="@+id/listPanel"
-        android:layout_width="540dp"
+        android:layout_width="710dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:background="#F20E1116"
@@ -229,17 +229,43 @@
             android:layout_height="2dp"
             android:background="#FFC93C" />
 
-        <ListView
-            android:id="@+id/channelList"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
-            android:divider="#18FFFFFF"
-            android:dividerHeight="1dp"
-            android:focusable="true"
-            android:listSelector="@drawable/sel_item"
-            android:paddingStart="6dp"
-            android:paddingEnd="6dp" />
+            android:orientation="horizontal">
+
+            <!-- Columna de categorías (subdirectorios) -->
+            <ListView
+                android:id="@+id/categoryList"
+                android:layout_width="170dp"
+                android:layout_height="match_parent"
+                android:background="#14FFFFFF"
+                android:divider="#18FFFFFF"
+                android:dividerHeight="1dp"
+                android:focusable="true"
+                android:listSelector="@drawable/sel_item"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#2A3342" />
+
+            <!-- Canales de la categoría elegida -->
+            <ListView
+                android:id="@+id/channelList"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:divider="#18FFFFFF"
+                android:dividerHeight="1dp"
+                android:focusable="true"
+                android:listSelector="@drawable/sel_item"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp" />
+        </LinearLayout>
     </LinearLayout>
 
     <!-- Pantalla de bienvenida -->
