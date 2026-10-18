@@ -83,6 +83,7 @@ class MainActivity : Activity() {
 
     private var channels: List<Channel> = emptyList()
     private var shown: List<Channel> = emptyList() // canales que se muestran en la lista (puede ocultar caídos)
+    private var categoryFilter: String? = null // categoría (grupo) elegida en el menú; null = todas
     private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
     private var index = 0
     private var prevIndex = -1
@@ -754,8 +755,12 @@ class MainActivity : Activity() {
     /** Recalcula qué canales se ven en la lista (si está activado, oculta los caídos). */
     private fun refreshShown() {
         val cur = channels.getOrNull(index)
-        shown = if (repo.hideDead) channels.filter { !isDead(it) || it === cur } else channels
-        listCount.text = "${shown.size} canales"
+        // Si la categoría elegida ya no existe en la lista (por una actualización), se vuelve a "Todas"
+        if (categoryFilter != null && channels.none { it.group == categoryFilter }) categoryFilter = null
+        val cat = categoryFilter
+        val byCat = if (cat == null) channels else channels.filter { it.group == cat }
+        shown = if (repo.hideDead) byCat.filter { !isDead(it) || it === cur } else byCat
+        listCount.text = if (cat == null) "${shown.size} canales" else "$cat · ${shown.size} canales"
         adapter.notifyDataSetChanged()
     }
 
@@ -913,6 +918,7 @@ class MainActivity : Activity() {
         val aspectNow = aspectNames[repo.getAspect(channels.getOrNull(index)?.name ?: "").coerceIn(0, 2)]
             .substringBefore(" (")
         val entries = listOf(
+            MenuEntry(R.drawable.ic_m_category, "Categorías", categoryFilter ?: "Todas", "#F59E0B") { showCategories() },
             MenuEntry(R.drawable.ic_m_refresh, "Actualizar canales", null, "#4ADE80") { updateNow(true) },
             MenuEntry(R.drawable.ic_m_audio, "Pista de audio", "Idioma", "#C084FC") { showAudioMenu() },
             MenuEntry(R.drawable.ic_m_swap, "Fuentes", "Cambiar enlace", "#FB923C") { showSources() },
@@ -937,6 +943,16 @@ class MainActivity : Activity() {
             }
         )
         MenuDialog.show(this, "Menú", "${channels.size} canales  ·  v${AppUpdater.currentVersion(this)}", entries)
+    }
+
+    /** Categorías = los grupos (group-title) de la lista, en el orden en que aparecen. */
+    private fun showCategories() {
+        val groups = LinkedHashMap<String, Int>()
+        for (c in channels) groups[c.group] = (groups[c.group] ?: 0) + 1
+        CategoryDialog.show(this, channels.size, groups.map { Pair(it.key, it.value) }, categoryFilter) { picked ->
+            categoryFilter = picked
+            showList() // abre la lista ya filtrada
+        }
     }
 
     // ───────────────────────── Pista de audio (idioma) ─────────────────────────
