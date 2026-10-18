@@ -86,7 +86,8 @@ class MainActivity : Activity() {
     private var channels: List<Channel> = emptyList()
     private var shown: List<Channel> = emptyList() // canales de la categoría elegida (puede ocultar caídos)
     private var groups: List<Pair<String, Int>> = emptyList() // categorías (grupo, cantidad) en el orden de la lista
-    private var selectedGroup: String? = null // categoría elegida en la columna izquierda
+    private var selectedGroup: String? = null // categoría elegida en la columna izquierda; null = "Todos los canales"
+    private var totalVisible = 0 // cantidad total de canales visibles (para la entrada "Todos los canales")
     private val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
     private var index = 0
     private var prevIndex = -1
@@ -245,7 +246,7 @@ class MainActivity : Activity() {
         catList.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(p: AdapterView<*>?, v: View?, pos: Int, id: Long) {
                 if (!catList.hasFocus()) return // solo cuando se navega con el control, no al abrir la lista
-                val g = groups.getOrNull(pos)?.first ?: return
+                val g = if (pos == 0) null else (groups.getOrNull(pos - 1)?.first ?: return)
                 if (g != selectedGroup) {
                     selectedGroup = g
                     refreshShown()
@@ -256,8 +257,7 @@ class MainActivity : Activity() {
         }
         // Tocar / OK en una categoría: muestra sus canales y pasa el foco a ellos
         catList.onItemClickListener = AdapterView.OnItemClickListener { _, _, pos, _ ->
-            val g = groups.getOrNull(pos)?.first ?: return@OnItemClickListener
-            selectedGroup = g
+            selectedGroup = if (pos == 0) null else (groups.getOrNull(pos - 1)?.first ?: return@OnItemClickListener)
             refreshShown()
             listView.setSelection(0)
             listView.requestFocus()
@@ -776,7 +776,7 @@ class MainActivity : Activity() {
         listView.post {
             val cur = channels.getOrNull(index)
             listView.setSelection(shown.indexOfFirst { it === cur }.coerceAtLeast(0))
-            catList.setSelection(groups.indexOfFirst { it.first == selectedGroup }.coerceAtLeast(0))
+            catList.setSelection(if (selectedGroup == null) 0 else groups.indexOfFirst { it.first == selectedGroup } + 1)
         }
     }
 
@@ -789,9 +789,10 @@ class MainActivity : Activity() {
         val count = LinkedHashMap<String, Int>()
         for (c in visible) count[c.group] = (count[c.group] ?: 0) + 1
         groups = count.map { Pair(it.key, it.value) }
-        // Si la categoría elegida ya no existe (por una actualización), se usa la primera
-        if (selectedGroup == null || !count.containsKey(selectedGroup)) selectedGroup = groups.firstOrNull()?.first
-        shown = visible.filter { it.group == selectedGroup }
+        // Si la categoría elegida ya no existe (por una actualización), se vuelve a "Todos los canales"
+        if (selectedGroup != null && !count.containsKey(selectedGroup)) selectedGroup = null
+        totalVisible = visible.size
+        shown = if (selectedGroup == null) visible else visible.filter { it.group == selectedGroup }
         listCount.text = "${visible.size} canales"
         catAdapter.notifyDataSetChanged()
         adapter.notifyDataSetChanged()
@@ -1216,14 +1217,15 @@ class MainActivity : Activity() {
     }
 
     private inner class CategoryAdapter : BaseAdapter() {
-        override fun getCount() = groups.size
-        override fun getItem(position: Int) = groups[position]
+        override fun getCount() = groups.size + 1 // la primera fila es "Todos los canales"
+        override fun getItem(position: Int): Any = if (position == 0) "" else groups[position - 1]
         override fun getItemId(position: Int) = position.toLong()
         override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
             val v = convertView
                 ?: LayoutInflater.from(this@MainActivity).inflate(R.layout.item_group, parent, false)
-            val (g, n) = groups[position]
-            val open = g == selectedGroup
+            val g = if (position == 0) "Todos los canales" else groups[position - 1].first
+            val n = if (position == 0) totalVisible else groups[position - 1].second
+            val open = if (position == 0) selectedGroup == null else g == selectedGroup
             val name = v.findViewById<TextView>(R.id.groupName)
             name.text = g
             name.setTextColor(if (open) 0xFFFFC93C.toInt() else 0xFFFFFFFF.toInt())
