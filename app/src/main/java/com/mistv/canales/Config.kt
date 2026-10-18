@@ -22,9 +22,9 @@ object Config {
     // Zapping rápido: cuánto video se guarda antes de empezar / reanudar (milisegundos).
     const val BUF_MIN_MS = 8_000
     const val BUF_MAX_MS = 30_000
-    const val BUF_START_MS = 700          // empezar a mostrar con muy poco video
-    const val BUF_REBUFFER_MS = 2_000
-    const val VLC_CACHE_MS = 1000         // caché de red de VLC
+    const val BUF_START_MS = 1500         // ExoPlayer: video juntado antes de empezar (antes 700)
+    const val BUF_REBUFFER_MS = 5_000       // ExoPlayer: video juntado antes de reanudar tras un corte (antes 2000)
+    const val VLC_CACHE_MS = 3000         // solo motor VLC: caché de red (antes 1000)
 
     const val INFO_MS = 9000L             // cuánto dura la pantalla de información
     const val OSD_MS = 4000L              // cuánto dura el cartel del canal

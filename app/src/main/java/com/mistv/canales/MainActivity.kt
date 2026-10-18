@@ -129,6 +129,13 @@ class MainActivity : Activity() {
     private var vlcUserPaused = false
     private var wdGood = 0
     private var stallCount = 0
+    private var bufStartMs = 0L      // diagnóstico: inicio del corte actual (0 = sin corte)
+    private var sawReady = false     // diagnóstico: ya empezó a reproducir (no cuenta la carga inicial)
+    private var lastSwitchMs = 0L    // para no alternar de fuente a cada rato
+    private fun curHost(): String {
+        val ch = channels.getOrNull(index) ?: return "?"
+        return StreamLog.safeHost(currentSource(ch).url)
+    }
     private val watchdog = object : Runnable {
         override fun run() {
             try {
@@ -272,10 +279,12 @@ class MainActivity : Activity() {
                 Config.BUF_START_MS, Config.BUF_REBUFFER_MS
             )
             .build()
+        StreamLog.init(filesDir)
         player = ExoPlayer.Builder(this, renderers).setLoadControl(load).build()
         player.playWhenReady = true
         player.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
+                StreamLog.log("Error ExoPlayer en ${curHost()}: ${error.errorCodeName} (${error.cause?.javaClass?.simpleName ?: "-"}) intento=$attempt fuente=${srcIndex + 1}")
                 // Se quedó atrás de la transmisión en vivo: basta con volver a engancharse.
                 if (error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW) {
                     startPlayback()
@@ -285,7 +294,15 @@ class MainActivity : Activity() {
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_BUFFERING && player.playWhenReady && bufStartMs == 0L && sawReady) {
+                    bufStartMs = android.os.SystemClock.elapsedRealtime()
+                }
                 if (playbackState == Player.STATE_READY) {
+                    if (bufStartMs != 0L) {
+                        StreamLog.log("Interrupción de ${(android.os.SystemClock.elapsedRealtime() - bufStartMs)} ms en ${channels.getOrNull(index)?.name} (${curHost()})")
+                        bufStartMs = 0L
+                    }
+                    sawReady = true
                     ui.removeCallbacks(retryPlayback)
                     hideMessage()
                     channels.getOrNull(index)?.let {
@@ -362,10 +379,13 @@ class MainActivity : Activity() {
         ui.removeCallbacks(retryPlayback)
         hideMessage()
         attempt = 0
+        bufStartMs = 0L
+        sawReady = false
         // Arranca con la fuente que fijó el usuario; si no hay, con la que ya anduvo antes; si no, con la principal.
         val pinned = repo.getPinnedSource(ch.name)
         srcIndex = (if (pinned >= 0) pinned else (workingSrc[ch.name] ?: 0)).coerceIn(0, ch.sources.size - 1)
         modes = modesFor(ch.sources[srcIndex].url)
+        StreamLog.log("Canal '${ch.name}' fuente ${srcIndex + 1}/${ch.sources.size} en ${StreamLog.safeHost(ch.sources[srcIndex].url)}")
         applyAspect()
         startPlayback()
         showOsd(ch)
@@ -482,6 +502,7 @@ class MainActivity : Activity() {
             DashMediaSource.Factory(dsf).createMediaSource(MediaItem.fromUri(src.url))
         } else if (modes[attempt.coerceIn(0, modes.size - 1)]) {
             HlsMediaSource.Factory(dsf)
+                .setLoadErrorHandlingPolicy(StreamLog.HlsRetryPolicy { StreamLog.safeHost(src.url) })
                 .setAllowChunklessPreparation(true)
                 .createMediaSource(
                     MediaItem.Builder()
@@ -536,6 +557,7 @@ class MainActivity : Activity() {
                             ui.postDelayed({ applySavedAudioVlc() }, 1500)
                         }
                         VlcPlayer.Event.EncounteredError -> runOnUiThread {
+                            StreamLog.log("Error VLC en ${curHost()} fuente=${srcIndex + 1}")
                             if (!tryNextSource()) {
                                 showMessage("Sin señal: ${channels.getOrNull(index)?.name ?: ""}", 0)
                                 ui.removeCallbacks(retryPlayback)
@@ -654,9 +676,14 @@ class MainActivity : Activity() {
         wdReset()
         wdGood = 0
         stallCount++
+        StreamLog.log("Reconexión #$stallCount (imagen trabada) en ${curHost()}")
+        // Cambia de respaldo solo tras 3 trabas seguidas y no más de una vez cada 20 s (evita ir y venir).
         if (stallCount > 2) {
-            stallCount = 0
-            if (tryNextSource()) return
+            val now = android.os.SystemClock.elapsedRealtime()
+            if (now - lastSwitchMs >= 20_000L) {
+                stallCount = 0
+                if (tryNextSource()) return
+            }
         }
         showMessage("Reconectando…", 2500)
         startPlayback()
@@ -666,9 +693,12 @@ class MainActivity : Activity() {
     private fun tryNextSource(): Boolean {
         val ch = channels.getOrNull(index) ?: return false
         if (srcIndex >= ch.sources.size - 1) return false
+        val from = StreamLog.safeHost(ch.sources[srcIndex].url)
         srcIndex++
         attempt = 0
+        lastSwitchMs = android.os.SystemClock.elapsedRealtime()
         modes = modesFor(ch.sources[srcIndex].url)
+        StreamLog.log("Cambio de fuente en '${ch.name}': $from -> ${StreamLog.safeHost(ch.sources[srcIndex].url)} (${srcIndex + 1}/${ch.sources.size})")
         showMessage("Señal caída, probando respaldo ${srcIndex + 1}/${ch.sources.size}…", 4000)
         startPlayback()
         return true
@@ -715,6 +745,7 @@ class MainActivity : Activity() {
         }
         if (tryNextSource()) return
         val ch = channels.getOrNull(index) ?: return
+        StreamLog.log("Sin señal en '${ch.name}': se agotaron fuentes; reintento completo en 10 s")
         showMessage("Sin señal: ${ch.name}\nProbá con otro canal", 0)
         ui.removeCallbacks(retryPlayback)
         ui.postDelayed(retryPlayback, 10_000)
