@@ -25,12 +25,14 @@ object StreamLog {
     }
 
     /** Devuelve solo host:puerto (sin credenciales, ruta ni parámetros). */
-    fun safeHost(url: String): String = try {
-        val u = URI(url.trim())
-        val h = u.host ?: return "?"
-        if (u.port > 0) "$h:${u.port}" else h
-    } catch (_: Throwable) {
-        "?"
+    fun safeHost(url: String): String {
+        return try {
+            val u = URI(url.trim())
+            val h = u.host
+            if (h == null) "?" else if (u.port > 0) "$h:${u.port}" else h
+        } catch (_: Throwable) {
+            "?"
+        }
     }
 
     @Synchronized
