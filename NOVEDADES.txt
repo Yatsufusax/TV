@@ -1,16 +1,11 @@
-OBLIGATORIA
+- Se agrega soporte inicial para la categoría Eventos, administrada mediante eventos.json en GitHub y separada de la lista M3U principal.
+- Eventos admite fuentes HTTPS directas y páginas web HTTPS en un WebView sin puente JavaScript nativo.
+- Se guarda una caché local de eventos y se evita usar números que ya estén ocupados por la lista M3U.
+- Los enlaces temporales solo podrán renovarse si el proveedor ofrece un mecanismo válido; la app no elude protecciones ni genera tokens nuevos.
 
-- Lista lateral con categorías: "Todos los canales" arriba y debajo cada categoría (Deportes, Películas, Infantil...)
-- Cambio de canal más rápido
-- Tecla INFO: muestra resolución, audio, señal y programa actual
-- Ajuste de pantalla por canal (ajustar / zoom / estirar) desde el menú
-- Cartoon Network y otros canales con VLC ya no se quedan congelados: reconectan solos
-- La app ahora muestra las novedades antes de actualizar
-- Mejoras de seguridad: la primera vez pide un código de acceso
-- La app busca versiones nuevas sola cada pocos minutos, sin tener que cerrarla y abrirla
-- Código de acceso (permanente y mensuales)
-- Menú nuevo: más grande, centrado y con iconos
-- Los avisos de actualización salen en el centro de la pantalla
-- La lista se carga sola al escribir el código de acceso
-- Menú > Fuentes: elegí a mano con qué enlace ver cada canal (se recuerda)
-- Si un enlace marcado como caído vuelve a andar, se le saca la marca solo
+
+EVENTOS WEB INTEGRADOS
+- Los canales 1000 y 1001 cargan las páginas de prueba de LaCancha.tv dentro de la pantalla principal de YuzuPlay.
+- Añadido soporte de pantalla completa HTML5 del reproductor web y opción de recargar evento desde el menú.
+- Reintento único ante error de carga principal. No extrae enlaces privados ni garantiza renovar tokens internos del proveedor.
+- Las páginas web de eventos están limitadas a HTTPS en lacancha.tv y subdominios.

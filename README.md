@@ -136,3 +136,53 @@ Los iconos están en `res/drawable/ic_m_*.xml`. Los avisos de actualización usa
 - Si una fuente marcada como caída vuelve a andar, se le saca la marca sola.
 - No se muestran las direcciones de los enlaces, solo "Fuente N".
 
+
+## Categoría Eventos (JSON independiente)
+
+La app consulta `eventos.json` desde la URL configurada en `Config.EVENTS_URL`. El archivo es independiente de la lista M3U, así que se pueden cambiar los eventos desde GitHub sin recompilar el APK. La app guarda una copia local para mantener los eventos visibles si la red falla.
+
+Ejemplo de formato:
+
+```json
+{
+  "schemaVersion": 1,
+  "events": [
+    {
+      "number": 1000,
+      "name": "Evento deportivo",
+      "type": "DIRECT_STREAM",
+      "url": "https://proveedor.example/live.m3u8",
+      "enabled": true
+    },
+    {
+      "number": 1001,
+      "name": "Evento web",
+      "type": "WEB_PAGE",
+      "url": "https://proveedor.example/evento",
+      "enabled": true
+    }
+  ]
+}
+```
+
+- `number`: reservado para eventos entre 1000 y 1999. Si el número ya está ocupado por un canal de la M3U, ese evento se omite para evitar colisiones.
+- `type`: `DIRECT_STREAM` reproduce la URL con el reproductor habitual; `WEB_PAGE` abre la página HTTPS en un WebView sin puente JavaScript nativo.
+- `url`: debe ser HTTPS. Usá únicamente fuentes que tengas derecho a reproducir.
+- `enabled`: permite desactivar un evento sin borrarlo.
+- `logo` (opcional): URL HTTPS del logo.
+- `userAgent` y `referer` (opcionales): encabezados para fuentes directas; `referer` también debe ser HTTPS.
+
+Los ejemplos del archivo `eventos.json` están deshabilitados y usan `example.com`: reemplazalos por fuentes legítimas antes de habilitarlos. La app puede reintentar o volver a cargar una página, pero no puede renovar mágicamente tokens o enlaces temporales si el proveedor no ofrece un mecanismo de renovación válido.
+
+
+## Eventos web integrados (prueba)
+
+La categoría **Eventos** se administra por separado en `eventos.json`, sin mezclar estas entradas con `lista.m3u`. La app incluye dos páginas de prueba de LaCancha.tv en los canales 1000 y 1001.
+
+- Las páginas web se cargan dentro del mismo contenedor visual que ExoPlayer/VLC; no abren una Activity de navegador separada.
+- Si el sitio ofrece pantalla completa HTML5, se muestra sobre la app mediante `WebChromeClient`. Puede ser necesario tocar el control de pantalla completa del propio reproductor web.
+- Para eventos web, el menú incluye **Recargar evento web**. Se hace como máximo un reintento automático si falla la carga principal de la página. Esto no garantiza renovar una fuente interna caducada: el sitio controla esa parte.
+- Por seguridad, la primera versión solo permite URLs de página HTTPS de `lacancha.tv` y sus subdominios. No se expone `addJavascriptInterface`, no se permite contenido mixto HTTP y se deshabilita el acceso a archivos locales.
+- El reproductor web puede tener limitaciones propias del sitio (iframes, anuncios, cookies, bloqueo de incrustación o controles). La compatibilidad debe probarse en el dispositivo.
+
+Para cambiar los eventos, editá `eventos.json` en la raíz del repositorio y mantené una copia en `app/src/main/assets/eventos.json` como respaldo local. La app descarga el JSON remoto usando `Config.EVENTS_URL`; si no está disponible, usa la caché o el archivo incluido en el APK.

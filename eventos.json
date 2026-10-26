@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "events": [
+    {
+      "number": 1000,
+      "name": "DSPORTS · LaCancha",
+      "type": "WEB_PAGE",
+      "url": "https://lacancha.tv/es/canal/dsports-fltvhd",
+      "enabled": true
+    },
+    {
+      "number": 1001,
+      "name": "TyC Sports · LaCancha",
+      "type": "WEB_PAGE",
+      "url": "https://lacancha.tv/es/canal/tyc-fan",
+      "enabled": true
+    }
+  ]
+}

@@ -14,13 +14,22 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.view.Gravity
+import android.graphics.Color
+import android.webkit.CookieManager
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import android.widget.ProgressBar
 import android.widget.AdapterView
 import android.widget.BaseAdapter
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
-import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.media3.common.C
@@ -52,6 +61,14 @@ class MainActivity : Activity() {
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
     private lateinit var vlcLayout: VLCVideoLayout
+    private lateinit var rootContainer: ViewGroup
+    private lateinit var contentContainer: ViewGroup
+    private var eventWebView: WebView? = null
+    private var currentWebUrl: String? = null
+    private var webFullscreenView: View? = null
+    private var webFullscreenCallback: WebChromeClient.CustomViewCallback? = null
+    private var previousSystemUiVisibility = 0
+    private var webRetryAttempt = 0
 
     // Motor VLC de respaldo (se crea solo si hace falta)
     private var libVlc: LibVLC? = null
@@ -84,6 +101,9 @@ class MainActivity : Activity() {
     private lateinit var gestures: GestureDetector
 
     private var channels: List<Channel> = emptyList()
+    private var baseChannels: List<Channel> = emptyList()
+    private var eventChannels: List<Channel> = emptyList()
+    private var eventWebUrls: Set<String> = emptySet()
     private var shown: List<Channel> = emptyList() // canales de la categoría elegida (puede ocultar caídos)
     private var groups: List<Pair<String, Int>> = emptyList() // categorías (grupo, cantidad) en el orden de la lista
     private var selectedGroup: String? = null // categoría elegida en la columna izquierda; null = "Todos los canales"
@@ -211,6 +231,9 @@ class MainActivity : Activity() {
 
         playerView = findViewById(R.id.player)
         vlcLayout = findViewById(R.id.vlcLayout)
+        rootContainer = (findViewById<ViewGroup>(android.R.id.content).getChildAt(0) as ViewGroup)
+        contentContainer = findViewById(android.R.id.content)
+        setupEventWebView()
         osd = findViewById(R.id.osd)
         infoPanel = findViewById(R.id.infoPanel)
         osdNumber = findViewById(R.id.osdNumber)
@@ -233,7 +256,8 @@ class MainActivity : Activity() {
         }, 1700)
 
         repo = ChannelRepository(this)
-        channels = repo.loadLocal()
+        baseChannels = repo.loadLocal()
+        channels = baseChannels
         LogoLoader.init(this)
         ChannelChecker.load(repo)
 
@@ -269,6 +293,8 @@ class MainActivity : Activity() {
             listView.setSelection(0)
             listView.requestFocus()
         }
+        // Se carga después de preparar los adaptadores para evitar carreras durante onCreate.
+        refreshEventsFromGitHub()
 
         // Si el decodificador de video principal falla, prueba con otro (software) antes de rendirse.
         val renderers = DefaultRenderersFactory(this).setEnableDecoderFallback(true)
@@ -346,10 +372,26 @@ class MainActivity : Activity() {
         stopped = true
         if (::player.isInitialized) player.stop()
         stopVlc()
+        eventWebView?.onPause()
+        eventWebView?.pauseTimers()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        eventWebView?.onResume()
+        eventWebView?.resumeTimers()
     }
 
     override fun onDestroy() {
         ui.removeCallbacksAndMessages(null)
+        exitWebFullscreen()
+        eventWebView?.apply {
+            stopLoading()
+            loadUrl("about:blank")
+            removeAllViews()
+            destroy()
+        }
+        eventWebView = null
         if (::player.isInitialized) player.release()
         stopVlc()
         vlcPlayer?.release()
@@ -358,6 +400,175 @@ class MainActivity : Activity() {
     }
 
     // ───────────────────────── Reproducción ─────────────────────────
+
+
+    /** Crea el WebView dentro del mismo FrameLayout que ExoPlayer/VLC; no abre otra Activity. */
+    private fun setupEventWebView() {
+        val web = WebView(this)
+        eventWebView = web
+        web.visibility = View.GONE
+        web.setBackgroundColor(Color.BLACK)
+        web.isFocusable = true
+        web.isFocusableInTouchMode = true
+        web.settings.apply {
+            javaScriptEnabled = true // LaCancha necesita JavaScript para su reproductor.
+            domStorageEnabled = true
+            mediaPlaybackRequiresUserGesture = false
+            allowFileAccess = false
+            allowContentAccess = false
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
+            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) safeBrowsingEnabled = true
+        }
+        CookieManager.getInstance().setAcceptCookie(true)
+        // LaCancha puede usar un iframe de video de otro proveedor; no se expone ningún puente nativo.
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
+        web.setOnLongClickListener {
+            if (!panelVisible) showList()
+            true
+        }
+        web.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val target = request.url.toString()
+                if (!request.isForMainFrame) return false // permite los recursos/iframes del reproductor
+                return !isAllowedEventWebUrl(target)
+            }
+
+            override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                if (!isAllowedEventWebUrl(url)) {
+                    view.stopLoading()
+                    showMessage("Se bloqueó una navegación externa no permitida", 5000)
+                    return
+                }
+                showMessage("Cargando evento…", 0)
+            }
+
+            override fun onPageFinished(view: WebView, url: String) {
+                if (isAllowedEventWebUrl(url)) {
+                    webRetryAttempt = 0
+                    hideMessage()
+                }
+            }
+
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: android.webkit.WebResourceError) {
+                if (request.isForMainFrame) {
+                    showMessage("No se pudo cargar el evento. Intentando recuperar…", 4500)
+                    if (webRetryAttempt < 1) {
+                        webRetryAttempt++
+                        ui.postDelayed({
+                            if (isWebEvent(channels.getOrNull(index)) && view.visibility == View.VISIBLE) view.reload()
+                        }, 2500)
+                    }
+                }
+            }
+
+            override fun onReceivedHttpError(view: WebView, request: WebResourceRequest, errorResponse: android.webkit.WebResourceResponse) {
+                if (request.isForMainFrame && errorResponse.statusCode >= 400) {
+                    showMessage("La página respondió ${errorResponse.statusCode}. Podés reintentar desde el menú.", 6000)
+                }
+            }
+        }
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onShowCustomView(view: View, callback: CustomViewCallback) {
+                if (webFullscreenView != null) {
+                    callback.onCustomViewHidden()
+                    return
+                }
+                webFullscreenView = view
+                webFullscreenCallback = callback
+                previousSystemUiVisibility = window.decorView.systemUiVisibility
+                eventWebView?.visibility = View.GONE
+                contentContainer.addView(view, FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    Gravity.CENTER
+                ))
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                )
+            }
+
+            override fun onHideCustomView() {
+                exitWebFullscreen()
+            }
+        }
+        // Insertar por encima de los dos reproductores, pero debajo de OSD/lista/menús de YuzuPlay.
+        val lp = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+        rootContainer.addView(web, minOf(2, rootContainer.childCount), lp)
+    }
+
+    private fun isAllowedEventWebUrl(value: String): Boolean = try {
+        val uri = Uri.parse(value)
+        val host = uri.host?.lowercase(Locale.ROOT).orEmpty()
+        uri.scheme.equals("https", true) &&
+            (host == "lacancha.tv" || host.endsWith(".lacancha.tv"))
+    } catch (_: Throwable) { false }
+
+    private fun isWebEvent(ch: Channel?): Boolean =
+        ch != null && ch.group == "Eventos" && eventWebUrls.contains(ch.url)
+
+    private fun showEventWeb(ch: Channel, forceReload: Boolean) {
+        val web = eventWebView ?: return
+        if (!isAllowedEventWebUrl(ch.url)) {
+            showMessage("URL web no permitida. Revisá eventos.json", 6000)
+            return
+        }
+        ui.removeCallbacks(retryPlayback)
+        player.pause()
+        stopVlc()
+        playerView.visibility = View.GONE
+        vlcLayout.visibility = View.GONE
+        web.visibility = View.VISIBLE
+        webRetryAttempt = 0
+        if (forceReload || currentWebUrl != ch.url || web.url.isNullOrBlank() || web.url == "about:blank") {
+            currentWebUrl = ch.url
+            web.loadUrl(ch.url)
+        } else {
+            web.onResume()
+        }
+    }
+
+    private fun hideEventWeb(clearPage: Boolean) {
+        val web = eventWebView ?: return
+        if (webFullscreenView != null) exitWebFullscreen()
+        if (web.visibility == View.VISIBLE) {
+            web.onPause()
+            web.visibility = View.GONE
+        }
+        if (clearPage) {
+            web.stopLoading()
+            web.loadUrl("about:blank")
+            currentWebUrl = null
+        }
+        playerView.visibility = View.VISIBLE
+    }
+
+    private fun reloadCurrentWebEvent() {
+        val ch = channels.getOrNull(index) ?: return
+        if (!isWebEvent(ch)) return
+        val web = eventWebView ?: return
+        webRetryAttempt = 0
+        showMessage("Recargando evento…", 0)
+        web.reload()
+    }
+
+    private fun exitWebFullscreen() {
+        val view = webFullscreenView ?: return
+        try {
+            (view.parent as? ViewGroup)?.removeView(view)
+        } catch (_: Throwable) {}
+        webFullscreenView = null
+        eventWebView?.visibility = View.VISIBLE
+        try { webFullscreenCallback?.onCustomViewHidden() } catch (_: Throwable) {}
+        webFullscreenCallback = null
+        window.decorView.systemUiVisibility = previousSystemUiVisibility
+    }
 
     private fun looksHls(url: String) = url.contains(".m3u8", ignoreCase = true)
     private fun looksDash(url: String) = url.contains(".mpd", ignoreCase = true)
@@ -386,6 +597,13 @@ class MainActivity : Activity() {
         srcIndex = (if (pinned >= 0) pinned else (workingSrc[ch.name] ?: 0)).coerceIn(0, ch.sources.size - 1)
         modes = modesFor(ch.sources[srcIndex].url)
         StreamLog.log("Canal '${ch.name}' fuente ${srcIndex + 1}/${ch.sources.size} en ${StreamLog.safeHost(ch.sources[srcIndex].url)}")
+        if (isWebEvent(ch)) {
+            showEventWeb(ch, forceReload = currentWebUrl != ch.url)
+            showOsd(ch)
+            refreshShown()
+            return
+        }
+        hideEventWeb(clearPage = true)
         applyAspect()
         startPlayback()
         showOsd(ch)
@@ -478,6 +696,11 @@ class MainActivity : Activity() {
 
     private fun startPlayback() {
         val ch = channels.getOrNull(index) ?: return
+        if (isWebEvent(ch)) {
+            showEventWeb(ch, forceReload = currentWebUrl != ch.url)
+            return
+        }
+        hideEventWeb(clearPage = true)
         audioApplied = false
         val src = currentSource(ch)
         wdReset()
@@ -613,6 +836,10 @@ class MainActivity : Activity() {
     /** Se llama cada 4 s: detecta imagen congelada o carga eterna y reconecta. */
     private fun checkStall() {
         if (stopped || channels.isEmpty()) return
+        if (isWebEvent(channels.getOrNull(index))) {
+            wdReset()
+            return // el watchdog Exo/VLC no debe interferir con un reproductor web
+        }
         var stalled = false
         if (usingVlc) {
             val vp = vlcPlayer ?: return
@@ -811,7 +1038,8 @@ class MainActivity : Activity() {
         }
     }
 
-    private fun isDead(ch: Channel) = ChannelChecker.isDead(ch)
+    // Las páginas web de Eventos no son enlaces de vídeo directo: no deben marcarse como caídas.
+    private fun isDead(ch: Channel) = if (isWebEvent(ch)) false else ChannelChecker.isDead(ch)
 
     /** Recalcula categorías y canales de la lista (si está activado, oculta los caídos). */
     private fun refreshShown() {
@@ -905,6 +1133,12 @@ class MainActivity : Activity() {
     }
 
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        // El WebView necesita recibir toques para usar los controles del reproductor web.
+        // En ese modo, el toque normal queda para la página; una pulsación larga abre la lista.
+        if (!panelVisible && eventWebView?.visibility == View.VISIBLE && webFullscreenView == null) {
+            return super.dispatchTouchEvent(ev)
+        }
+        if (webFullscreenView != null) return super.dispatchTouchEvent(ev)
         // Si la lista está abierta y se toca sobre ella, la lista maneja el toque (scroll / elegir canal).
         val onList = panelVisible && ev.x <= listPanel.width
         if (!onList) {
@@ -967,6 +1201,7 @@ class MainActivity : Activity() {
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         when {
+            webFullscreenView != null -> exitWebFullscreen()
             panelVisible -> hideList()
             digits.isNotEmpty() -> {
                 digits = ""
@@ -989,7 +1224,7 @@ class MainActivity : Activity() {
     private fun showMenu() {
         val aspectNow = aspectNames[repo.getAspect(channels.getOrNull(index)?.name ?: "").coerceIn(0, 2)]
             .substringBefore(" (")
-        val entries = listOf(
+        val entries = mutableListOf(
             MenuEntry(R.drawable.ic_m_refresh, "Actualizar canales", null, "#4ADE80") { updateNow(true) },
             MenuEntry(R.drawable.ic_m_audio, "Pista de audio", "Idioma", "#C084FC") { showAudioMenu() },
             MenuEntry(R.drawable.ic_m_swap, "Fuentes", "Cambiar enlace", "#FB923C") { showSources() },
@@ -1013,6 +1248,11 @@ class MainActivity : Activity() {
                 AppUpdater.check(this, true)
             }
         )
+        if (isWebEvent(channels.getOrNull(index))) {
+            entries.add(0, MenuEntry(R.drawable.ic_m_refresh, "Recargar evento web", "Volver a cargar la página", "#4ADE80") {
+                reloadCurrentWebEvent()
+            })
+        }
         MenuDialog.show(this, "Menú", "${channels.size} canales  ·  v${AppUpdater.currentVersion(this)}", entries)
     }
 
@@ -1106,7 +1346,9 @@ class MainActivity : Activity() {
             toast("Ya se están probando los canales")
             return
         }
-        val list = channels
+        // El comprobador HTTP solo prueba señales directas; las páginas WebView se excluyen.
+        val list = channels.filterNot { isWebEvent(it) }
+        if (list.isEmpty()) { toast("No hay señales directas para probar"); return }
         showMessage("Probando canales…  0/${list.size}", 0)
         ChannelChecker.run(repo, list, { done, total ->
             if (done % 5 == 0 || done == total) {
@@ -1189,16 +1431,18 @@ class MainActivity : Activity() {
     }
 
     private fun applyChannels(list: List<Channel>, manual: Boolean) {
-        if (list == channels) {
+        if (list == baseChannels) {
             if (manual) toast("La lista ya está al día (${list.size} canales)")
+            refreshEventsFromGitHub()
             return
         }
         val cur = channels.getOrNull(index)
-        channels = list
-        val found = if (cur == null) -1 else list.indexOfFirst { it.name == cur.name }
+        baseChannels = list
+        channels = combineChannels(baseChannels, eventChannels)
+        val found = if (cur == null) -1 else channels.indexOfFirst { it.name == cur.name && it.group == cur.group }
         prevIndex = -1
         val same = cur != null && found >= 0 &&
-            list[found].url == cur.url && list[found].userAgent == cur.userAgent
+            channels[found].url == cur.url && channels[found].userAgent == cur.userAgent
         when {
             same -> {
                 index = found
@@ -1207,7 +1451,32 @@ class MainActivity : Activity() {
             found >= 0 -> tune(found)
             else -> tune(index.coerceIn(0, list.size - 1))
         }
-        toast("Lista actualizada: ${list.size} canales")
+        toast("Lista actualizada: ${baseChannels.size} canales")
+        refreshEventsFromGitHub()
+    }
+
+    /** Descarga eventos.json por separado; si falla, EventRepository conserva la caché local. */
+    private fun refreshEventsFromGitHub() {
+        Thread {
+            val loaded = EventRepository(this).load()
+            runOnUiThread {
+                val current = channels.getOrNull(index)
+                eventChannels = loaded.channels
+                eventWebUrls = loaded.webUrls
+                channels = combineChannels(baseChannels, eventChannels)
+                val found = if (current == null) -1 else channels.indexOfFirst {
+                    it.name == current.name && it.group == current.group
+                }
+                if (found >= 0) index = found else if (channels.isNotEmpty()) index = index.coerceIn(0, channels.lastIndex)
+                refreshShown()
+            }
+        }.start()
+    }
+
+    /** Evita que un número de evento pise un canal existente de la M3U. */
+    private fun combineChannels(base: List<Channel>, events: List<Channel>): List<Channel> {
+        val usedNumbers = base.map { it.number }.toHashSet()
+        return (base + events.filter { it.number !in usedNumbers }).sortedBy { it.number }
     }
 
     // ───────────────────────── Adaptador de la lista ─────────────────────────

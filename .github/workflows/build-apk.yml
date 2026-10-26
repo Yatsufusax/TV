@@ -1,12 +1,12 @@
-name: Build TVCanales APK
+name: Build YuzuPlay test APK
 
+# Solo ejecución manual desde Actions. No se publica ninguna release ni se activa
+# actualización automática al hacer push.
 on:
   workflow_dispatch:
-  push:
-    branches: [ main, master ]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -21,13 +21,11 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # El runner ya trae el Android SDK (ANDROID_HOME). No usamos
-      # android-actions/setup-android porque falla con "Failed to find package 'tools'".
       - name: Accept licenses and install Android SDK packages
         run: |
-          SDKMANAGER=$(ls $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager | sort -V | tail -n 1)
-          yes | $SDKMANAGER --licenses > /dev/null || true
-          $SDKMANAGER "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          SDKMANAGER=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -n 1)
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Download Gradle
         run: |
@@ -52,23 +50,10 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: /tmp/gradle-8.7/bin/gradle --no-daemon assembleDebug -PbuildNumber=${{ github.run_number }}
 
-      - name: Prepare release files
-        run: |
-          cp app/build/outputs/apk/debug/app-debug.apk TVCanales.apk
-          echo "${{ github.run_number }}" > version.txt
-          if [ -f NOVEDADES.txt ]; then cp NOVEDADES.txt novedades.txt; else echo "" > novedades.txt; fi
-
-      - name: Upload APK
+      - name: Upload test APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TVCanales-debug-apk
+          name: YuzuPlay-eventos-test-${{ github.run_number }}
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
-      # Publica la última versión en "Releases" para que la app pueda actualizarse sola.
-      - name: Publish latest release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete latest --cleanup-tag --yes || true
-          gh release create latest TVCanales.apk version.txt novedades.txt --title "Última versión" --notes "Build #${{ github.run_number }}" --latest
+          retention-days: 14

@@ -6,6 +6,10 @@ object Config {
     // También se puede cambiar después desde la app (flecha derecha del control).
     const val DEFAULT_LIST_URL = ""
 
+    // Archivo independiente de eventos (JSON) en el mismo repositorio.
+    // Editá eventos.json en GitHub para agregar/cambiar canales sin recompilar el APK.
+    const val EVENTS_URL = "https://raw.githubusercontent.com/Yatsufusax/TV/eventos-pruebas/eventos.json"
+
     // Dirección donde GitHub publica la última versión de la app (Releases).
     // Formato: https://github.com/USUARIO/REPO/releases/download/latest/
     // (el repositorio tiene que ser público para que la app pueda descargarla)
